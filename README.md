@@ -1,6 +1,11 @@
 
 # foo_midi
 
+This fork's `yamaha-midi-ports` branch is a separately labelled test candidate
+for Yamaha sequencer port metadata and four-port VST playback. See
+[Yamaha MIDI ports](docs/Yamaha-MIDI-Ports.md) for scope, tests and limitations.
+It is not yet submitted upstream or published as a recommended release.
+
 [foo_midi](https://github.com/stuerp/foo_midi/releases) is a [foobar2000](https://www.foobar2000.org/) component that adds playback of MIDI files to foobar2000.
 
 It is based on [foo_midi](https://gitlab.com/kode54/foo_midi) by [kode54](https://gitlab.com/kode54).

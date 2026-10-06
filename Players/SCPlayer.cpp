@@ -12,6 +12,7 @@
 #include "SecretSauce.h"
 #include "Resource.h"
 #include "Log.h"
+#include "PortSysEx.h"
 
 #pragma region Public
 
@@ -159,7 +160,7 @@ void SCPlayer::SendEvent(uint32_t event)
     uint32_t PortNumber = (event >> 24) & 0xFF;
 
     if (PortNumber > (_countof(_hProcess) - 1))
-        PortNumber = 0;
+        return;
 
     WriteBytes(PortNumber, 2);
     WriteBytes(PortNumber, event & 0xFFFFFF);
@@ -176,7 +177,7 @@ void SCPlayer::SendEvent(uint32_t data, uint32_t time)
     uint32_t PortNumber = (data >> 24) & 0xFF;
 
     if (PortNumber > 2)
-        PortNumber = 0;
+        return;
 
     WriteBytes(PortNumber, 6);
     WriteBytes(PortNumber, data & 0xFFFFFF);
@@ -191,17 +192,12 @@ void SCPlayer::SendEvent(uint32_t data, uint32_t time)
 /// </summary>
 void SCPlayer::SendSysEx(const uint8_t * data, size_t size, uint32_t portNumber)
 {
-    WriteBytes(portNumber, 3);
-    WriteBytes(portNumber, (uint32_t) size);
-    WriteBytes(portNumber, data, (uint32_t) size);
-
-    if (ReadCode(portNumber) != 0)
-        StopHost(portNumber);
-
-    if (portNumber == 0)
+    for (const auto & packet : PortSysEx::Route(data, size, portNumber, _PortNumbers, GetPortCount()))
     {
-        SendSysEx(data, size, 1);
-        SendSysEx(data, size, 2);
+        WriteBytes(packet.Port, 3);
+        WriteBytes(packet.Port, static_cast<uint32_t>(packet.Data.size()));
+        WriteBytes(packet.Port, packet.Data.data(), static_cast<uint32_t>(packet.Data.size()));
+        if (ReadCode(packet.Port) != 0) { StopHost(packet.Port); return; }
     }
 }
 
@@ -210,18 +206,13 @@ void SCPlayer::SendSysEx(const uint8_t * data, size_t size, uint32_t portNumber)
 /// </summary>
 void SCPlayer::SendSysEx(const uint8_t * event, size_t size, uint32_t portNumber, uint32_t time)
 {
-    WriteBytes(portNumber, 7);
-    WriteBytes(portNumber, (uint32_t) size);
-    WriteBytes(portNumber, (uint32_t) time);
-    WriteBytes(portNumber, event, (uint32_t) size);
-
-    if (ReadCode(portNumber) != 0)
-        StopHost(portNumber);
-
-    if (portNumber == 0)
+    for (const auto & packet : PortSysEx::Route(event, size, portNumber, _PortNumbers, GetPortCount()))
     {
-        SendSysEx(event, size, 1, time);
-        SendSysEx(event, size, 2, time);
+        WriteBytes(packet.Port, 7);
+        WriteBytes(packet.Port, static_cast<uint32_t>(packet.Data.size()));
+        WriteBytes(packet.Port, time);
+        WriteBytes(packet.Port, packet.Data.data(), static_cast<uint32_t>(packet.Data.size()));
+        if (ReadCode(packet.Port) != 0) { StopHost(packet.Port); return; }
     }
 }
 

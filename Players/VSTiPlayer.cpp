@@ -6,6 +6,7 @@
 #include "VSTiPlayer.h"
 #include "Resource.h"
 #include "Log.h"
+#include "PortSysEx.h"
 
 namespace VSTi
 {
@@ -205,16 +206,14 @@ void Player::SendEvent(uint32_t data)
 
 void Player::SendSysEx(const uint8_t * data, size_t size, uint32_t portNumber)
 {
-    const uint32_t SizeAndPort = ((uint32_t) size & 0xFFFFFF) | (portNumber << 24);
-
-    WriteBytes(8);
-    WriteBytes(SizeAndPort);
-    WriteBytesOverlapped(data, (uint32_t) size);
-
-    const uint32_t code = ReadCode();
-
-    if (code != 0)
-        StopHost();
+    for (const auto & packet : PortSysEx::Route(data, size, portNumber, _PortNumbers, GetPortCount()))
+    {
+        const uint32_t SizeAndPort = static_cast<uint32_t>(packet.Data.size()) | (packet.Port << 24);
+        WriteBytes(8);
+        WriteBytes(SizeAndPort);
+        WriteBytesOverlapped(packet.Data.data(), static_cast<uint32_t>(packet.Data.size()));
+        if (ReadCode() != 0) { StopHost(); return; }
+    }
 }
 
 void Player::SendEvent(uint32_t data, uint32_t time)
@@ -231,17 +230,15 @@ void Player::SendEvent(uint32_t data, uint32_t time)
 
 void Player::SendSysEx(const uint8_t * data, size_t size, uint32_t portNumber, uint32_t time)
 {
-    const uint32_t SizeAndPort = ((uint32_t) size & 0xFFFFFF) | (portNumber << 24);
-
-    WriteBytes(11);
-    WriteBytes(SizeAndPort);
-    WriteBytes(time);
-    WriteBytesOverlapped(data, (uint32_t) size);
-
-    const uint32_t code = ReadCode();
-
-    if (code != 0)
-        StopHost();
+    for (const auto & packet : PortSysEx::Route(data, size, portNumber, _PortNumbers, GetPortCount()))
+    {
+        const uint32_t SizeAndPort = static_cast<uint32_t>(packet.Data.size()) | (packet.Port << 24);
+        WriteBytes(11);
+        WriteBytes(SizeAndPort);
+        WriteBytes(time);
+        WriteBytesOverlapped(packet.Data.data(), static_cast<uint32_t>(packet.Data.size()));
+        if (ReadCode() != 0) { StopHost(); return; }
+    }
 }
 
 #pragma endregion

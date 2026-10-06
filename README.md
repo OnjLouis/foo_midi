@@ -1,10 +1,23 @@
 
 # foo_midi
 
-This fork's `yamaha-midi-ports` branch is a separately labelled test candidate
-for Yamaha sequencer port metadata and four-port VST playback. See
-[Yamaha MIDI ports](docs/Yamaha-MIDI-Ports.md) for scope, tests and limitations.
-It is not yet submitted upstream or published as a recommended release.
+## Multi-Port Community Build
+
+This community fork adds multi-port routing for Yamaha and Roland MIDI files,
+including four-port VST playback and destination-aware SysEx routing. It is
+based on stuerp/foo_midi 3.2.3.0, with upstream credits and licenses preserved.
+It is not an official upstream release or a hardware emulator.
+
+**Download:** [Community releases](https://github.com/OnjLouis/foo_midi/releases).
+Choose `foo_midi.fb2k-component`, not GitHub's source-code ZIP. One component
+package supports both 32-bit and 64-bit foobar2000. Version 3.2.3.3 is the first
+public preview; feedback on additional files, hosts and systems is welcome.
+
+See the [HTML guide](docs/Multi-Port-Community-Build.html) for installation,
+updates and limitations, or [technical notes](docs/Yamaha-MIDI-Ports.md).
+[Report a community-build issue](https://github.com/OnjLouis/foo_midi/issues)
+with the component version, player backend, plugin and reproducible MIDI case.
+Do not upload ROMs or other files you do not have permission to share.
 
 [foo_midi](https://github.com/stuerp/foo_midi/releases) is a [foobar2000](https://www.foobar2000.org/) component that adds playback of MIDI files to foobar2000.
 
@@ -25,11 +38,17 @@ It is based on [foo_midi](https://gitlab.com/kode54/foo_midi) by [kode54](https:
 
 ## Getting started
 
-- Double-click `foo_midi.fbk2-component`.
+- Double-click `foo_midi.fb2k-component`.
 
 or
 
-- Import `foo_midi.fbk2-component` into foobar2000 using the "*File / Preferences / Components / Install...*" menu item.
+- Import `foo_midi.fb2k-component` into foobar2000 using the "*File / Preferences / Components / Install...*" menu item, then restart foobar2000.
+
+The community build replaces the existing `foo_midi` component; it is not a
+second component to load alongside it. Keep a backup of your profile and old
+component before replacing it. Updates to this fork are downloaded manually
+from its community release page; the upstream component catalogue does not
+update this fork. Installing an upstream build can replace its routing changes.
 
 ## Usage
 

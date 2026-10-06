@@ -1,4 +1,4 @@
-name: Yamaha ports candidate
+name: Multi-Port Community Build
 
 on:
   workflow_dispatch:
@@ -92,10 +92,11 @@ jobs:
           Copy-Item '3rdParty/BASS/x64/*.dll' "$stage\x64"
           Copy-Item '3rdParty/fmmidi/Programs.txt', '3rdParty/FluidSynth/FluidSynth.cfg' $stage
           Copy-Item LICENSE, docs/Yamaha-MIDI-Ports.md $stage
+          Copy-Item docs/Multi-Port-Community-Build.html "$stage\Readme.html"
           Get-ChildItem $stage -File -Recurse | Get-FileHash -Algorithm SHA256 | Format-Table -AutoSize
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: foo-midi-yamaha-ports-candidate
+          name: foo-midi-multi-port-community-build
           path: ${{ runner.temp }}/candidate
           if-no-files-found: error
           retention-days: 7

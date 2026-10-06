@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MIDI Player: Multi-Port Community Build</title>
+  <style>
+    body { font-family: system-ui, sans-serif; line-height: 1.6; max-width: 56rem; margin: 2rem auto; padding: 0 1rem; color: #202020; background: #fff; }
+    a { color: #0055a4; } code { overflow-wrap: anywhere; }
+    :focus-visible { outline: 3px solid #0055a4; outline-offset: 3px; }
+    @media (prefers-color-scheme: dark) { body { color: #eee; background: #181818; } a { color: #93c9ff; } }
+  </style>
+</head>
+<body>
+<main>
+  <h1>MIDI Player: Multi-Port Community Build</h1>
+  <p>Version 3.2.3.3. First public preview for foobar2000 2.0 or later on Windows, in either 32-bit or 64-bit form.</p>
+  <p>This is OnjLouis's community fork of Peter Stuer's foo_midi, itself based on Christopher Snowhill's component. It improves multi-port Yamaha and Roland MIDI playback without changing your MIDI files or synthesizer sounds. It is not an official upstream build.</p>
+  <nav aria-label="Guide sections"><ul>
+    <li><a href="#install">Installation</a></li>
+    <li><a href="#changes">What changes</a></li>
+    <li><a href="#limits">Limits</a></li>
+    <li><a href="#updates">Updates and rollback</a></li>
+    <li><a href="#feedback">Testing and feedback</a></li>
+    <li><a href="#credits">Credits and source</a></li>
+  </ul></nav>
+  <h2 id="install">Installation</h2>
+  <ol>
+    <li>Back up your foobar2000 profile and existing foo_midi component with foobar2000 closed.</li>
+    <li>Download <code>foo_midi.fb2k-component</code> from the <a href="https://github.com/OnjLouis/foo_midi/releases">community release page</a>. The same package contains both architectures. GitHub's source-code archives are not installable components.</li>
+    <li>In foobar2000, open File, Preferences, Components, then Install. Select the downloaded component and apply the change. Restart when prompted.</li>
+    <li>Check that Components lists <strong>MIDI Player (Multi-Port Community Build)</strong>, version 3.2.3.3. Keep only one foo_midi component installed.</li>
+    <li>Use your existing MIDI player and instrument settings. For a VST instrument, select the VST backend and its instrument in MIDI preferences. No new port switch is required: the component reads the file's routing metadata.</li>
+  </ol>
+  <p>The keyboard-accessible foobar2000 preferences remain the normal configuration interface. This addition introduces no separate custom control panel. External instruments, SoundFonts, ROMs and commercial synthesizer files are not included; obtain any required assets separately with permission.</p>
+  <h2 id="changes">What changes</h2>
+  <ul>
+    <li>Standard MIDI Port events and Yamaha sequencer port events route correctly, including changes later in a track.</li>
+    <li>VST playback can use four independent groups of 16 MIDI channels, creating extra instrument instances only when needed.</li>
+    <li>Conservative recognition of complete SC-88 and partial SC-8820 A/B track-name layouts helps files without explicit port events. Explicit routing always takes priority.</li>
+    <li>Recognized Yamaha multi-part and Roland alternate-group SysEx messages reach the intended instance and local part. Global resets and recognized system effects reach declared ports without broadcasting every local part change.</li>
+    <li>Secret Sauce uses the same destination-aware policy while retaining its existing three-port capacity.</li>
+  </ul>
+  <p>Track count is not channel count. Thirty-two tracks may still share sixteen channels; independent channel groups require port metadata or one of the strictly recognized Roland layouts. The build does not guess solely from track count.</p>
+  <h2 id="limits">Limits</h2>
+  <p>Separate VST instances are not a single hardware module. They do not share its polyphony, global effect processors or cross-port receive-channel reassignment. Recognized parameters are adapted, but proprietary bulk dumps and unknown messages are not translated. Complete hardware parity is not promised.</p>
+  <p>A destination must be declared by the MIDI file. If absent, the original SysEx is preserved on its source rather than inventing a port. Declared event ports beyond the backend's capacity are not merged into another group. Existing port-number normalization is retained.</p>
+  <p>Additional instances increase resource use according to the instrument being loaded. Lazy creation avoids starting unused instances, but four expensive instruments can still require substantial CPU and memory. Single-port files should retain their existing routing.</p>
+  <h2 id="updates">Updates and rollback</h2>
+  <p>Updates to this community fork are manual: download its newest component package, install it through Components and restart. There is no added automatic updater. The upstream component catalogue does not track this fork, and installing an upstream build may replace these changes.</p>
+  <p>No settings migration is introduced. To roll back, install the previously retained foo_midi component package and restart. Your profile backup is a separate safeguard; do not overwrite settings indiscriminately. Do not load old and new DLLs together.</p>
+  <h2 id="feedback">Testing and feedback</h2>
+  <p>Parser and instrument-bridge regression tests pass in both architectures. They cover independent notes and programs, timing, SysEx, reset cycles, saved state, later port changes, unsupported ports, lazy instance creation and preserved MIDI bytes. Corpus audits and listening checks also covered multi-port Yamaha percussion and Roland demos. Long-running workloads and all instrument combinations have not been exhaustively tested.</p>
+  <p>Please <a href="https://github.com/OnjLouis/foo_midi/issues">report reproducible issues</a> with your foobar2000 version and bitness, component version, player backend, instrument version, and the MIDI filename and passage. Comparisons with the upstream component or a permitted hardware recording are useful. Share files only when you have permission; no ROMs or credentials are needed in reports.</p>
+  <h2 id="credits">Credits and source</h2>
+  <ul>
+    <li><a href="https://github.com/OnjLouis/foo_midi">Community component source</a> and <a href="https://github.com/OnjLouis/libmidi">community parser source</a>.</li>
+    <li><a href="https://github.com/stuerp/foo_midi">Peter Stuer's upstream foo_midi</a> and <a href="https://github.com/stuerp/libmidi">libmidi</a>.</li>
+    <li><a href="https://gitlab.com/kode54/foo_midi">Christopher Snowhill's original foo_midi</a>.</li>
+  </ul>
+  <p>Upstream author credits and MIT license notices are preserved. Bundled third-party libraries retain their own licenses; the component's upstream README lists those dependencies. This package contains no Yamaha or Roland ROMs, commercial synthesizer DLLs, MIDI songs, user profiles or private maintainer data.</p>
+</main>
+</body>
+</html>

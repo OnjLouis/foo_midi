@@ -1,8 +1,12 @@
-# Yamaha MIDI ports candidate
+# Multi-Port Community Build: Technical Notes
 
 This fork is based on stuerp/foo_midi 3.2.3.0 and its pinned libmidi dependency.
-Original author credits and licenses remain unchanged. This branch is a test
-candidate, not an upstream release or a replacement MU hardware emulator.
+Original author credits and licenses remain unchanged. Version 3.2.3.3 is the
+first public community preview, not an upstream release or a replacement MU
+hardware emulator. The development branch retains the historical name
+`yamaha-midi-ports`; the component supports Yamaha and Roland routing.
+
+For installation and updates, see the [HTML guide](Multi-Port-Community-Build.html).
 
 ## Changes
 
@@ -58,8 +62,13 @@ The original MIDI file is never rewritten by playback routing.
 
 Regression tests use a ROM-free VST probe and synthetic MIDI files. They cover
 independent programs/notes, timed events and SysEx, resets, state transfer,
-unsupported ports, lazy instances, and repeated startup/shutdown. Listening
-tests with real plugins remain necessary before recommending a release.
+unsupported ports, lazy instances, and repeated startup/shutdown. Both Win32
+and x64 variants pass the parser and bridge tests. Listening checks confirmed
+the SC-88 demos and the corrected multi-port Yamaha percussion case. Corpus
+audits checked channel routing and preserved message payloads across Yamaha
+and Roland files, including conservative partial SC-8820 layouts. These tests
+do not establish complete hardware parity or long-running stability on every
+plugin and machine; further community listening tests remain valuable.
 
 ## Tests
 
@@ -68,6 +77,6 @@ tests live in `vsthost/tests`; configure that directory with CMake, a Windows
 C++17 compiler and Python 3, using an external build directory. Run both Win32
 and x64 variants. No ROMs or commercial MIDI files are required.
 
-The candidate build workflow uses the SDK version documented by upstream,
+The community build workflow uses the SDK version documented by upstream,
 2025-03-07, and a pinned WTL checkout. It uploads test artifacts only; it never
 creates a GitHub release or installs anything on a user's machine.

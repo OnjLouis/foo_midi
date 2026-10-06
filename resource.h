@@ -18,13 +18,13 @@
 
 /** Component specific **/
 
-#define STR_COMPONENT_NAME          "MIDI Player (Yamaha ports candidate)"
+#define STR_COMPONENT_NAME          "MIDI Player (Multi-Port Community Build)"
 #define STR_COMPONENT_VERSION       TOSTRING(NUM_FILE_MAJOR) "." TOSTRING(NUM_FILE_MINOR) "." TOSTRING(NUM_FILE_PATCH) "." TOSTRING(NUM_FILE_PRERELEASE)
 #define STR_COMPONENT_BASENAME      "foo_midi"
 #define STR_COMPONENT_FILENAME      STR_COMPONENT_BASENAME ".dll"
 #define STR_COMPONENT_COMPANY_NAME  "LoSno.co"
 #define STR_COMPONENT_COPYRIGHT     "Copyright (c) 2004-2025 " STR_COMPONENT_COMPANY_NAME ". All rights reserved."
-#define STR_COMPONENT_COMMENTS      "Written by Christopher Snowhill, P. Stuer; Yamaha port fork by OnjLouis"
+#define STR_COMPONENT_COMMENTS      "Written by Christopher Snowhill, P. Stuer; multi-port community build by OnjLouis"
 #define STR_COMPONENT_DESCRIPTION   "Adds playback of MIDI files to foobar2000"
 #define STR_COMPONENT_URL           "https://github.com/OnjLouis/" STR_COMPONENT_BASENAME
 

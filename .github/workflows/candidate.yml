@@ -1,0 +1,87 @@
+name: Yamaha ports candidate
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [yamaha-midi-ports]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          path: foo_midi
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: Win32-WTL/WTL
+          ref: 065ef5597383c1231bd4892cf8e94331b29bdb97
+          path: 3rdParty/WTL10_10320
+          persist-credentials: false
+      - uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce
+      - name: Prepare SDK
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $archive = Join-Path $env:RUNNER_TEMP 'SDK-2025-03-07.7z'
+          Invoke-WebRequest 'https://www.foobar2000.org/downloads/SDK-2025-03-07.7z' -OutFile $archive
+          $expected = 'CCDA3C5840E66E0E28A7E4FE36407C4E78581AA30C40C362A188FCBAAE799A3E'
+          if ((Get-FileHash $archive -Algorithm SHA256).Hash -ne $expected) { throw 'SDK checksum mismatch' }
+          7z x $archive "-o$env:GITHUB_WORKSPACE\sdk" -y
+          if ($LASTEXITCODE) { throw 'SDK extraction failed' }
+      - name: Regression tests
+        run: |
+          $ErrorActionPreference = 'Stop'
+          foreach ($architecture in @('Win32', 'x64')) {
+            foreach ($target in @(@('parser', 'foo_midi/3rdParty/libmidi/tests'), @('host', 'foo_midi/vsthost/tests'))) {
+              $build = Join-Path $env:RUNNER_TEMP "$($target[0])-$architecture"
+              cmake -S $target[1] -B $build -A $architecture
+              if ($LASTEXITCODE) { throw 'Test configure failed' }
+              cmake --build $build --config Release
+              if ($LASTEXITCODE) { throw 'Test build failed' }
+              ctest --test-dir $build -C Release --output-on-failure
+              if ($LASTEXITCODE) { throw 'Regression test failed' }
+            }
+          }
+      - name: Build component
+        working-directory: foo_midi
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $solutionRoot = "$env:RUNNER_TEMP\component-build\"
+          foreach ($architecture in @('x64', 'Win32')) {
+            msbuild foo_midi.vcxproj /m /v:minimal /p:Configuration=Release "/p:Platform=$architecture" "/p:SolutionDir=$solutionRoot" /p:LibrariesArchitecture=x64 /p:PostBuildEventUseInBuild=false
+            if ($LASTEXITCODE) { throw "Component build failed: $architecture" }
+          }
+          foreach ($target in @(@('vsthost/vsthost32.vcxproj', 'Win32'), @('vsthost/vsthost64.vcxproj', 'x64'), @('scpipe/scpipe32.vcxproj', 'Win32'), @('scpipe/scpipe64.vcxproj', 'x64'))) {
+            msbuild $target[0] /m /v:minimal /p:Configuration=Release "/p:Platform=$($target[1])" "/p:SolutionDir=$solutionRoot" /p:PostBuildEventUseInBuild=false
+            if ($LASTEXITCODE) { throw 'Bridge build failed' }
+          }
+          $stage = Join-Path $env:RUNNER_TEMP 'candidate'
+          New-Item "$stage\x64" -ItemType Directory -Force | Out-Null
+          Copy-Item "$solutionRoot\out\x86\Release\foo_midi.dll" $stage
+          Copy-Item "$solutionRoot\out\x64\Release\foo_midi.dll" "$stage\x64"
+          foreach ($bits in @('32', '64')) {
+            $arch = if ($bits -eq '32') { 'x86' } else { 'x64' }
+            foreach ($bridge in @('vsthost', 'scpipe')) {
+              Copy-Item "$solutionRoot\out\$arch\Release\$bridge$bits.exe" $stage
+            }
+          }
+          Copy-Item '3rdParty/BASS/*.dll' $stage
+          Copy-Item '3rdParty/BASS/x64/*.dll' "$stage\x64"
+          Copy-Item '3rdParty/fmmidi/Programs.txt', '3rdParty/FluidSynth/FluidSynth.cfg' $stage
+          Copy-Item LICENSE, docs/Yamaha-MIDI-Ports.md $stage
+          Get-ChildItem $stage -File -Recurse | Get-FileHash -Algorithm SHA256 | Format-Table -AutoSize
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: foo-midi-yamaha-ports-candidate
+          path: ${{ runner.temp }}/candidate
+          if-no-files-found: error
+          retention-days: 7

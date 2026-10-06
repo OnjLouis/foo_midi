@@ -9,24 +9,24 @@
 #define NUM_FILE_MAJOR              3
 #define NUM_FILE_MINOR              2
 #define NUM_FILE_PATCH              3
-#define NUM_FILE_PRERELEASE         0
+#define NUM_FILE_PRERELEASE         1
 
 #define NUM_PRODUCT_MAJOR           3
 #define NUM_PRODUCT_MINOR           2
 #define NUM_PRODUCT_PATCH           3
-#define NUM_PRODUCT_PRERELEASE      0
+#define NUM_PRODUCT_PRERELEASE      1
 
 /** Component specific **/
 
-#define STR_COMPONENT_NAME          "MIDI Player"
+#define STR_COMPONENT_NAME          "MIDI Player (Yamaha ports candidate)"
 #define STR_COMPONENT_VERSION       TOSTRING(NUM_FILE_MAJOR) "." TOSTRING(NUM_FILE_MINOR) "." TOSTRING(NUM_FILE_PATCH) "." TOSTRING(NUM_FILE_PRERELEASE)
 #define STR_COMPONENT_BASENAME      "foo_midi"
 #define STR_COMPONENT_FILENAME      STR_COMPONENT_BASENAME ".dll"
 #define STR_COMPONENT_COMPANY_NAME  "LoSno.co"
 #define STR_COMPONENT_COPYRIGHT     "Copyright (c) 2004-2025 " STR_COMPONENT_COMPANY_NAME ". All rights reserved."
-#define STR_COMPONENT_COMMENTS      "Written by Christopher Snowhill, P. Stuer"
+#define STR_COMPONENT_COMMENTS      "Written by Christopher Snowhill, P. Stuer; Yamaha port fork by OnjLouis"
 #define STR_COMPONENT_DESCRIPTION   "Adds playback of MIDI files to foobar2000"
-#define STR_COMPONENT_URL           "https://github.com/stuerp/" STR_COMPONENT_BASENAME
+#define STR_COMPONENT_URL           "https://github.com/OnjLouis/" STR_COMPONENT_BASENAME
 
 /** Generic **/
 

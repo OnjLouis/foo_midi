@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "MIDIPorts.h"
 
 #include <pluginterfaces/vst2.x/aeffect.h>
 #include <pluginterfaces/vst2.x/aeffectx.h>
@@ -15,6 +16,7 @@ enum
 {
     BUFFER_SIZE = 4096
 };
+using VSTHost::MaxMIDIPorts;
 
 bool need_idle = false;
 bool idle_started = false;
@@ -52,7 +54,7 @@ void FreeEvents()
     {
         vst_event_t * Next = Event->next;
 
-        if (Event->port && Event->ev.sysexEvent.type == kVstSysExType)
+        if (Event->ev.sysexEvent.type == kVstSysExType)
             ::free(Event->ev.sysexEvent.sysexDump);
 
         ::free(Event);
@@ -400,9 +402,10 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
 
     uint32_t Code = 0;
 
-    AEffect * Effect[3] = { 0, 0, 0 };
+    AEffect * Effect[MaxMIDIPorts] = {};
+    bool EffectStarted[MaxMIDIPorts] = {};
 
-    audioMasterData effectData[3] = { { 0 }, { 1 }, { 2 } };
+    audioMasterData effectData[MaxMIDIPorts] = { { 0 }, { 1 }, { 2 }, { 3 } };
 
     std::vector<uint8_t> State;
 
@@ -451,6 +454,13 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
         *Slash = '\0';
     }
 
+    float ** float_list_in = nullptr;
+    float ** float_list_out = nullptr;
+    float * float_null = nullptr;
+    float * float_out = nullptr;
+    uint32_t MaxOutputs = 0;
+    main_func Main = nullptr;
+
     HMODULE hModule = ::LoadLibraryW(argv[1]);
 
     if (hModule == 0)
@@ -462,7 +472,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
     #pragma warning(disable: 4191) //unsafe conversion from 'FARPROC' to 'main_func'
 
     // Find the DLL entry point.
-    auto Main = (main_func) ::GetProcAddress(hModule, "VSTPluginMain");
+    Main = (main_func) ::GetProcAddress(hModule, "VSTPluginMain");
 
     if (Main == nullptr)
     {
@@ -499,7 +509,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
         }
     }
 
-    uint32_t MaxOutputs = (uint32_t) min(Effect[0]->numOutputs, 2);
+    MaxOutputs = (uint32_t) min(Effect[0]->numOutputs, 2);
 
     {
         char name_string[256] = { 0 };
@@ -540,11 +550,6 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
             WriteBytes(product_string, product_string_length);
     }
 
-    float ** float_list_in = nullptr;
-    float ** float_list_out = nullptr;
-    float * float_null = nullptr;
-    float * float_out = nullptr;
-
     for (;;)
     {
         Code = ReadCode();
@@ -570,9 +575,8 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
                 chunk.resize(size);
                 if (size) ReadBytes(chunk.data(), size);
 
-                setChunk(Effect[0], chunk);
-                setChunk(Effect[1], chunk);
-                setChunk(Effect[2], chunk);
+                for (auto effect : Effect)
+                    setChunk(effect, chunk);
 
                 WriteCode(0);
                 break;
@@ -598,8 +602,8 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
                     DialogBoxIndirectParam(0, &t, ::GetDesktopWindow(), (DLGPROC) EditorProc, (LPARAM) (Effect[0]));
 
                     ReadChunk(Effect[0], chunk);
-                    setChunk(Effect[1], chunk);
-                    setChunk(Effect[2], chunk);
+                    for (unsigned port = 1; port < MaxMIDIPorts; ++port)
+                        setChunk(Effect[port], chunk);
                 }
 
                 WriteCode(0);
@@ -624,30 +628,18 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
 
             case 6: // Reset
             {
-                if (Effect[2])
+                for (unsigned port = 0; port < MaxMIDIPorts; ++port)
                 {
-                    if (State.size())
-                        Effect[2]->dispatcher(Effect[2], effStopProcess, 0, 0, 0, 0);
-
-                    Effect[2]->dispatcher(Effect[2], effClose, 0, 0, 0, 0);
-                    Effect[2] = nullptr;
+                    if (!Effect[port]) continue;
+                    if (EffectStarted[port])
+                        Effect[port]->dispatcher(Effect[port], effStopProcess, 0, 0, 0, 0);
+                    Effect[port]->dispatcher(Effect[port], effClose, 0, 0, 0, 0);
+                    Effect[port] = nullptr;
+                    EffectStarted[port] = false;
                 }
-
-                if (Effect[1])
-                {
-                    if (State.size())
-                        Effect[1]->dispatcher(Effect[1], effStopProcess, 0, 0, 0, 0);
-
-                    Effect[1]->dispatcher(Effect[1], effClose, 0, 0, 0, 0);
-                    Effect[1] = nullptr;
-                }
-
-                if (State.size())
-                    Effect[0]->dispatcher(Effect[0], effStopProcess, 0, 0, 0, 0);
-
-                Effect[0]->dispatcher(Effect[0], effClose, 0, 0, 0, 0);
 
                 State.resize(0);
+                idle_started = false;
 
                 FreeEvents();
 
@@ -685,9 +677,6 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
 
                     ev->port = (b & 0x7F000000) >> 24;
 
-                    if (ev->port > 2)
-                        ev->port = 2;
-
                     ev->ev.midiEvent.type = kVstMidiType;
                     ev->ev.midiEvent.byteSize = sizeof(ev->ev.midiEvent);
 
@@ -717,9 +706,6 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
 
                     ev->port = port;
 
-                    if (ev->port > 2)
-                        ev->port = 2;
-
                     ev->ev.sysexEvent.type = kVstSysExType;
                     ev->ev.sysexEvent.byteSize = sizeof(ev->ev.sysexEvent);
                     ev->ev.sysexEvent.dumpBytes = (VstInt32) size;
@@ -734,273 +720,134 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
 
             case 9: // Render Samples
             {
-                if (Effect[1] == nullptr)
+                unsigned event_count[MaxMIDIPorts] = {};
+                for (auto ev = _EventsHead; ev; ev = ev->next)
+                    if (ev->port < MaxMIDIPorts)
+                        ++event_count[ev->port];
+
+                // Instantiate only ports receiving data, not idle copies for
+                // every single-port song. Unsupported ports never alias port D.
+                for (unsigned port = 0; port < MaxMIDIPorts; ++port)
                 {
-                    Effect[1] = Main(&audioMaster);
-
-                    if (Effect[1] == nullptr)
+                    if (!Effect[port] && event_count[port])
                     {
-                        Code = 11;
-                        goto exit;
-                    }
-
-                    Effect[1]->user = &effectData[1];
-                    Effect[1]->dispatcher(Effect[1], effOpen, 0, 0, 0, 0);
-
-                    setChunk(Effect[1], chunk);
-                }
-
-                if (Effect[2] == nullptr)
-                {
-                    Effect[2] = Main(&audioMaster);
-
-                    if (Effect[2] == nullptr)
-                    {
-                        Code = 11;
-                        goto exit;
-                    }
-
-                    Effect[2]->user = &effectData[2];
-                    Effect[2]->dispatcher(Effect[2], effOpen, 0, 0, 0, 0);
-
-                    setChunk(Effect[2], chunk);
-                }
-
-                // Initialize the lists and the sample buffer.
-                if (State.size() == 0)
-                {
-                    Effect[0]->dispatcher(Effect[0], effSetSampleRate, 0, 0, 0, float(SampleRate));
-                    Effect[0]->dispatcher(Effect[0], effSetBlockSize, 0, BUFFER_SIZE, 0, 0);
-                    Effect[0]->dispatcher(Effect[0], effMainsChanged, 0, 1, 0, 0);
-                    Effect[0]->dispatcher(Effect[0], effStartProcess, 0, 0, 0, 0);
-
-                    Effect[1]->dispatcher(Effect[1], effSetSampleRate, 0, 0, 0, float(SampleRate));
-                    Effect[1]->dispatcher(Effect[1], effSetBlockSize, 0, BUFFER_SIZE, 0, 0);
-                    Effect[1]->dispatcher(Effect[1], effMainsChanged, 0, 1, 0, 0);
-                    Effect[1]->dispatcher(Effect[1], effStartProcess, 0, 0, 0, 0);
-
-                    Effect[2]->dispatcher(Effect[2], effSetSampleRate, 0, 0, 0, float(SampleRate));
-                    Effect[2]->dispatcher(Effect[2], effSetBlockSize, 0, BUFFER_SIZE, 0, 0);
-                    Effect[2]->dispatcher(Effect[2], effMainsChanged, 0, 1, 0, 0);
-                    Effect[2]->dispatcher(Effect[2], effStartProcess, 0, 0, 0, 0);
-
-                    {
+                        Effect[port] = Main(&audioMaster);
+                        if (!Effect[port] || Effect[port]->magic != kEffectMagic)
                         {
-                            size_t buffer_size = sizeof(float *) * (Effect[0]->numInputs + (Effect[0]->numOutputs * 3)); // float lists
-
-                            buffer_size += sizeof(float) * BUFFER_SIZE; // null input
-                            buffer_size += sizeof(float) * BUFFER_SIZE * Effect[0]->numOutputs * 3; // outputs
-
-                            State.resize(buffer_size);
+                            Code = 11;
+                            goto exit;
                         }
-
-                        float_list_in  = (float **) State.data();
-                        float_list_out =            float_list_in + Effect[0]->numInputs;
-                        float_null     = (float *) (float_list_out + Effect[0]->numOutputs * 3);
-                        float_out      =            float_null + BUFFER_SIZE;
-
-                        for (uint32_t i = 0; i < (uint32_t) Effect[0]->numInputs;      ++i)
-                            float_list_in[i] = float_null;
-
-                        for (uint32_t i = 0; i < (uint32_t) Effect[0]->numOutputs * 3; ++i)
-                            float_list_out[i] = float_out + (BUFFER_SIZE * i);
-
-                        ::memset(float_null, 0, BUFFER_SIZE * sizeof(float));
-
-                        size_t NewSize = BUFFER_SIZE * MaxOutputs * sizeof(float);
-
-                        sample_buffer.resize(NewSize);
+                        Effect[port]->user = &effectData[port];
+                        Effect[port]->dispatcher(Effect[port], effOpen, 0, 0, 0, 0);
+                        setChunk(Effect[port], chunk);
+                        if (Effect[port]->numInputs != Effect[0]->numInputs ||
+                            Effect[port]->numOutputs != Effect[0]->numOutputs)
+                        {
+                            Code = 11;
+                            goto exit;
+                        }
                     }
+                    if (!Effect[port] || EffectStarted[port]) continue;
+                    Effect[port]->dispatcher(Effect[port], effSetSampleRate, 0, 0, 0, float(SampleRate));
+                    Effect[port]->dispatcher(Effect[port], effSetBlockSize, 0, BUFFER_SIZE, 0, 0);
+                    Effect[port]->dispatcher(Effect[port], effMainsChanged, 0, 1, 0, 0);
+                    Effect[port]->dispatcher(Effect[port], effStartProcess, 0, 0, 0, 0);
+                    EffectStarted[port] = true;
                 }
 
-                if (need_idle && float_list_in && float_list_out)
+                const uint32_t num_outputs = (uint32_t) Effect[0]->numOutputs;
+                if (State.empty())
                 {
-                    Effect[0]->dispatcher(Effect[0], DECLARE_VST_DEPRECATED(effIdle), 0, 0, 0, 0);
-                    Effect[1]->dispatcher(Effect[1], DECLARE_VST_DEPRECATED(effIdle), 0, 0, 0, 0);
-                    Effect[2]->dispatcher(Effect[2], DECLARE_VST_DEPRECATED(effIdle), 0, 0, 0, 0);
+                    size_t buffer_size = sizeof(float *) * (Effect[0]->numInputs + num_outputs * MaxMIDIPorts);
+                    buffer_size += sizeof(float) * BUFFER_SIZE * (1 + num_outputs * MaxMIDIPorts);
+                    State.resize(buffer_size);
+                    float_list_in = (float **) State.data();
+                    float_list_out = float_list_in + Effect[0]->numInputs;
+                    float_null = (float *) (float_list_out + num_outputs * MaxMIDIPorts);
+                    float_out = float_null + BUFFER_SIZE;
+                    for (uint32_t i = 0; i < (uint32_t) Effect[0]->numInputs; ++i)
+                        float_list_in[i] = float_null;
+                    for (uint32_t i = 0; i < num_outputs * MaxMIDIPorts; ++i)
+                        float_list_out[i] = float_out + BUFFER_SIZE * i;
+                    ::memset(float_null, 0, BUFFER_SIZE * sizeof(float));
+                    sample_buffer.resize(BUFFER_SIZE * MaxOutputs);
+                }
 
+                if (need_idle)
+                {
+                    for (auto effect : Effect)
+                        if (effect) effect->dispatcher(effect, DECLARE_VST_DEPRECATED(effIdle), 0, 0, 0, 0);
                     if (!idle_started)
                     {
                         unsigned idle_run = BUFFER_SIZE * 200;
-
                         while (idle_run)
                         {
                             uint32_t count_to_do = min(idle_run, BUFFER_SIZE);
-                            uint32_t num_outputs = (uint32_t) Effect[0]->numOutputs;
-
-                            Effect[0]->processReplacing(Effect[0], float_list_in, float_list_out, (VstInt32) count_to_do);
-                            Effect[1]->processReplacing(Effect[1], float_list_in, float_list_out + num_outputs, (VstInt32) count_to_do);
-                            Effect[2]->processReplacing(Effect[2], float_list_in, float_list_out + num_outputs * 2, (VstInt32) count_to_do);
-
-                            Effect[0]->dispatcher(Effect[0], DECLARE_VST_DEPRECATED(effIdle), 0, 0, 0, 0);
-                            Effect[1]->dispatcher(Effect[1], DECLARE_VST_DEPRECATED(effIdle), 0, 0, 0, 0);
-                            Effect[2]->dispatcher(Effect[2], DECLARE_VST_DEPRECATED(effIdle), 0, 0, 0, 0);
-
+                            for (unsigned port = 0; port < MaxMIDIPorts; ++port)
+                            {
+                                auto effect = Effect[port];
+                                if (!effect) continue;
+                                effect->processReplacing(effect, float_list_in, float_list_out + num_outputs * port, (VstInt32) count_to_do);
+                                effect->dispatcher(effect, DECLARE_VST_DEPRECATED(effIdle), 0, 0, 0, 0);
+                            }
                             idle_run -= count_to_do;
                         }
                     }
                 }
 
-                VstEvents * events[3] = { 0 };
-
-                if (_EventsHead)
+                VstEvents * events[MaxMIDIPorts] = {};
+                std::vector<VstIntPtr> event_storage[MaxMIDIPorts];
+                for (unsigned port = 0; port < MaxMIDIPorts; ++port)
                 {
-                    unsigned event_count[3] = { 0 };
-
-                    vst_event_t * ev = _EventsHead;
-
-                    while (ev)
-                    {
-                        event_count[ev->port]++;
-
-                        ev = ev->next;
-                    }
-
-                    if (event_count[0] != 0)
-                    {
-//                      events[0] = (VstEvents *) malloc(sizeof(VstInt32) + sizeof(VstIntPtr) + (sizeof(VstEvent *) * event_count[0]));
-                        events[0] = (VstEvents *) malloc(offsetof(struct VstEvents, events) - offsetof(struct VstEvents, numEvents) + (sizeof(VstEvent *) * event_count[0]));
-
-                        events[0]->numEvents = (VstInt32) event_count[0];
-                        events[0]->reserved = 0;
-
-                        ev = _EventsHead;
-
-                        for (unsigned i = 0; ev;)
-                        {
-                            if (!ev->port)
-                                events[0]->events[i++] = (VstEvent *) &ev->ev;
-
-                            ev = ev->next;
-                        }
-
-                        Effect[0]->dispatcher(Effect[0], effProcessEvents, 0, 0, events[0], 0);
-                    }
-
-                    if (event_count[1] != 0)
-                    {
-//                      events[1] = (VstEvents *) malloc(sizeof(VstInt32) + sizeof(VstIntPtr) + (sizeof(VstEvent *) * event_count[1]));
-                        events[1] = (VstEvents *) malloc(offsetof(struct VstEvents, events) - offsetof(struct VstEvents, numEvents) + (sizeof(VstEvent *) * event_count[1]));
-
-                        events[1]->numEvents = (VstInt32) event_count[1];
-                        events[1]->reserved = 0;
-
-                        ev = _EventsHead;
-
-                        for (unsigned i = 0; ev;)
-                        {
-                            if (ev->port == 1)
-                                events[1]->events[i++] = (VstEvent *) &ev->ev;
-
-                            ev = ev->next;
-                        }
-
-                        Effect[1]->dispatcher(Effect[1], effProcessEvents, 0, 0, events[1], 0);
-                    }
-
-                    if (event_count[2] != 0)
-                    {
-//                      events[2] = (VstEvents *) malloc(sizeof(VstInt32) + sizeof(VstIntPtr) + (sizeof(VstEvent *) * event_count[2]));
-                        events[2] = (VstEvents *) malloc(offsetof(struct VstEvents, events) - offsetof(struct VstEvents, numEvents) + (sizeof(VstEvent *) * event_count[2]));
-
-                        events[2]->numEvents = (VstInt32) event_count[2];
-                        events[2]->reserved = 0;
-
-                        ev = _EventsHead;
-
-                        for (unsigned i = 0; ev;)
-                        {
-                            if (ev->port == 2)
-                                events[2]->events[i++] = (VstEvent *) &ev->ev;
-
-                            ev = ev->next;
-                        }
-
-                        Effect[2]->dispatcher(Effect[2], effProcessEvents, 0, 0, events[2], 0);
-                    }
+                    if (!event_count[port]) continue;
+                    const size_t bytes = offsetof(VstEvents, events) + sizeof(VstEvent *) * event_count[port];
+                    event_storage[port].resize((bytes + sizeof(VstIntPtr) - 1) / sizeof(VstIntPtr));
+                    events[port] = (VstEvents *) event_storage[port].data();
+                    events[port]->numEvents = (VstInt32) event_count[port];
+                    events[port]->reserved = 0;
+                    unsigned index = 0;
+                    for (auto ev = _EventsHead; ev; ev = ev->next)
+                        if (ev->port == port)
+                            events[port]->events[index++] = (VstEvent *) &ev->ev;
+                    Effect[port]->dispatcher(Effect[port], effProcessEvents, 0, 0, events[port], 0);
                 }
 
                 if (need_idle)
                 {
-                    Effect[0]->dispatcher(Effect[0], DECLARE_VST_DEPRECATED(effIdle), 0, 0, 0, 0);
-                    Effect[1]->dispatcher(Effect[1], DECLARE_VST_DEPRECATED(effIdle), 0, 0, 0, 0);
-                    Effect[2]->dispatcher(Effect[2], DECLARE_VST_DEPRECATED(effIdle), 0, 0, 0, 0);
-
+                    for (auto effect : Effect)
+                        if (effect) effect->dispatcher(effect, DECLARE_VST_DEPRECATED(effIdle), 0, 0, 0, 0);
                     if (!idle_started)
                     {
-                        if (events[0]) Effect[0]->dispatcher(Effect[0], effProcessEvents, 0, 0, events[0], 0);
-                        if (events[1]) Effect[1]->dispatcher(Effect[1], effProcessEvents, 0, 0, events[1], 0);
-                        if (events[2]) Effect[2]->dispatcher(Effect[2], effProcessEvents, 0, 0, events[2], 0);
-
+                        for (unsigned port = 0; port < MaxMIDIPorts; ++port)
+                            if (events[port])
+                                Effect[port]->dispatcher(Effect[port], effProcessEvents, 0, 0, events[port], 0);
                         idle_started = true;
                     }
                 }
 
                 uint32_t SampleCount = ReadCode();
-
                 WriteCode(0);
-
-                if (float_list_out)
+                while (SampleCount)
                 {
-                    while (SampleCount)
+                    unsigned SamplesToDo = min(SampleCount, BUFFER_SIZE);
+                    for (unsigned port = 0; port < MaxMIDIPorts; ++port)
+                        if (Effect[port])
+                            Effect[port]->processReplacing(Effect[port], float_list_in, float_list_out + num_outputs * port, (VstInt32) SamplesToDo);
+                    float * out = sample_buffer.data();
+                    for (unsigned i = 0; i < SamplesToDo; ++i)
                     {
-                        unsigned SamplesToDo = min(SampleCount, BUFFER_SIZE);
-
-                        uint32_t num_outputs = (uint32_t) Effect[0]->numOutputs;
-//                      unsigned sample_start = 0;
-
-                        Effect[0]->processReplacing(Effect[0], float_list_in, float_list_out,                   (VstInt32) SamplesToDo);
-                        Effect[1]->processReplacing(Effect[1], float_list_in, float_list_out + num_outputs,     (VstInt32) SamplesToDo);
-                        Effect[2]->processReplacing(Effect[2], float_list_in, float_list_out + num_outputs * 2, (VstInt32) SamplesToDo);
-
-                        float * out = sample_buffer.data();
-
-                        if (MaxOutputs == 2)
+                        for (unsigned channel = 0; channel < MaxOutputs; ++channel)
                         {
-                            for (unsigned i = 0; i < SamplesToDo; ++i)
-                            {
-                                float sample = (float_out[i] +
-                                                float_out[i + BUFFER_SIZE * num_outputs] +
-                                                float_out[i + BUFFER_SIZE * num_outputs * 2]);
-                                out[0] = sample;
-
-                                sample = (float_out[i + BUFFER_SIZE] +
-                                          float_out[i + BUFFER_SIZE + BUFFER_SIZE * num_outputs] +
-                                          float_out[i + BUFFER_SIZE + BUFFER_SIZE * num_outputs * 2]);
-
-                                out[1] = sample;
-
-                                out += 2;
-                            }
+                            float sample = 0;
+                            for (unsigned port = 0; port < MaxMIDIPorts; ++port)
+                                if (Effect[port])
+                                    sample += float_out[i + BUFFER_SIZE * (channel + num_outputs * port)];
+                            *out++ = sample;
                         }
-                        else
-                        {
-                            for (unsigned i = 0; i < SamplesToDo; ++i)
-                            {
-                                float sample = (float_out[i] +
-                                                float_out[i + BUFFER_SIZE * num_outputs] +
-                                                float_out[i + BUFFER_SIZE * num_outputs * 2]);
-                                out[0] = sample;
-
-                                out++;
-                            }
-                        }
-
-                        WriteBytes(sample_buffer.data(), SamplesToDo * MaxOutputs * sizeof(float));
-
-                        SampleCount -= SamplesToDo;
                     }
+                    WriteBytes(sample_buffer.data(), SamplesToDo * MaxOutputs * sizeof(float));
+                    SampleCount -= SamplesToDo;
                 }
-
-                if (events[0])
-                    free(events[0]);
-
-                if (events[1])
-                    free(events[1]);
-
-                if (events[2])
-                    free(events[2]);
-
                 FreeEvents();
                 break;
             }
@@ -1019,8 +866,6 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
                 uint32_t timestamp = ReadCode();
 
                 ev->port = (b & 0x7F000000) >> 24;
-
-                if (ev->port > 2) ev->port = 2;
 
                 ev->ev.midiEvent.type = kVstMidiType;
                 ev->ev.midiEvent.byteSize = sizeof(ev->ev.midiEvent);
@@ -1048,7 +893,6 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
                 uint32_t timestamp = ReadCode();
 
                 ev->port = port;
-                if (ev->port > 2) ev->port = 0;
                 ev->ev.sysexEvent.type = kVstSysExType;
                 ev->ev.sysexEvent.byteSize = sizeof(ev->ev.sysexEvent);
                 ev->ev.sysexEvent.dumpBytes = (VstInt32) size;
@@ -1070,28 +914,12 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
     }
 
 exit:
-    if (Effect[2])
+    for (unsigned port = 0; port < MaxMIDIPorts; ++port)
     {
-        if (State.size())
-            Effect[2]->dispatcher(Effect[2], effStopProcess, 0, 0, 0, 0);
-
-        Effect[2]->dispatcher(Effect[2], effClose, 0, 0, 0, 0);
-    }
-
-    if (Effect[1])
-    {
-        if (State.size())
-            Effect[1]->dispatcher(Effect[1], effStopProcess, 0, 0, 0, 0);
-
-        Effect[1]->dispatcher(Effect[1], effClose, 0, 0, 0, 0);
-    }
-
-    if (Effect[0])
-    {
-        if (State.size())
-            Effect[0]->dispatcher(Effect[0], effStopProcess, 0, 0, 0, 0);
-
-        Effect[0]->dispatcher(Effect[0], effClose, 0, 0, 0, 0);
+        if (!Effect[port]) continue;
+        if (EffectStarted[port])
+            Effect[port]->dispatcher(Effect[port], effStopProcess, 0, 0, 0, 0);
+        Effect[port]->dispatcher(Effect[port], effClose, 0, 0, 0, 0);
     }
 
     FreeEvents();

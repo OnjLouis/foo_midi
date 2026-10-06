@@ -69,7 +69,7 @@ jobs:
           # The SDK library projects need WTL too, not only foo_midi itself.
           $env:CL = '/I"' + $env:GITHUB_WORKSPACE + '\3rdParty\WTL10_10320\Include"'
           # Archived WTL headers rely on MSVC's legacy template lookup.
-          $env:_CL_ = '/permissive /Zc:twoPhase-'
+          $env:_CL_ = '/permissive /Zc:twoPhase- /D_WTL_NO_WTYPES /D_WTL_NO_CSTRING'
           foreach ($architecture in @('x64', 'Win32')) {
             msbuild foo_midi.vcxproj /m /v:minimal /p:Configuration=Release /p:PlatformToolset=v143 "/p:Platform=$architecture" "/p:SolutionDir=$solutionRoot" "/p:VCToolsVersion=$env:VCTOOLS_VERSION" /p:UseOfAtl=Static /p:LibrariesArchitecture=x64 /p:PostBuildEventUseInBuild=false
             if ($LASTEXITCODE) { throw "Component build failed: $architecture" }

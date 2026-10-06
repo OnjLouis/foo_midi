@@ -12,6 +12,7 @@ constexpr uint8_t GSDataSet = 0x12;
 constexpr uint8_t MultiPartAddress = 0x08;
 constexpr uint8_t ChannelsPerPort = 16;
 constexpr uint8_t PartOff = 0x7F;
+constexpr uint32_t MissingPort = ~0U;
 struct Packet
 {
     uint32_t Port;
@@ -33,7 +34,7 @@ inline std::vector<Packet> Route(const uint8_t * data, size_t size, uint32_t sou
     auto target = [&](uint8_t raw) -> uint32_t
     {
         const auto it = std::find(ports.begin(), ports.end(), raw);
-        return it == ports.end() ? capacity : static_cast<uint32_t>(it - ports.begin());
+        return it == ports.end() ? MissingPort : static_cast<uint32_t>(it - ports.begin());
     };
     auto broadcast = [&]
     {
@@ -44,6 +45,7 @@ inline std::vector<Packet> Route(const uint8_t * data, size_t size, uint32_t sou
     {
         const auto part = bytes[offset];
         const auto destination = part == PartOff ? capacity : (part < ChannelsPerPort ? source : target(part / ChannelsPerPort));
+        if (destination == MissingPort) { emit(source, bytes); return; }
         const auto count = std::min(capacity, static_cast<uint32_t>(std::max(size_t(1), ports.size())));
         for (uint32_t port = 0; port < count; ++port)
         {
@@ -75,6 +77,7 @@ inline std::vector<Packet> Route(const uint8_t * data, size_t size, uint32_t sou
         if (high == MultiPartAddress && middle < 64)
         {
             const auto destination = middle < ChannelsPerPort ? source : target(middle / ChannelsPerPort);
+            if (destination == MissingPort) { emit(source, bytes); return result; }
             bytes[5] %= ChannelsPerPort;
             // Receive-channel numbers may also use the MU's absolute 0..63 range.
             if (low <= 4 && size - 8 > static_cast<size_t>(4 - low))
@@ -100,11 +103,15 @@ inline std::vector<Packet> Route(const uint8_t * data, size_t size, uint32_t sou
         for (size_t i = 5; i + 1 < size; ++i) checksum += bytes[i];
         if ((checksum & 0x7F) == 0)
         {
-            if (source == 0 && (bytes[5] == 0x50 || bytes[5] == 0x51))
+            const auto rawSource = source < ports.size() ? ports[source] : source;
+            if (rawSource <= 1 && (bytes[5] == 0x50 || bytes[5] == 0x51))
             {
+                const auto destination = target(static_cast<uint8_t>(rawSource ^ 1));
+                // Without a separate destination, preserve the synth's native handling.
+                if (destination == MissingPort) { emit(source, bytes); return result; }
                 bytes[5] -= 0x10;
                 bytes[size - 2] = (bytes[size - 2] + 0x10) & 0x7F;
-                emit(target(1), bytes);
+                emit(destination, bytes);
             }
             else if (source == 0 && ((bytes[5] == 0 && bytes[6] == 0 && bytes[7] == 0x7F) ||
                 (bytes[5] == 0x40 && bytes[6] <= 3)))

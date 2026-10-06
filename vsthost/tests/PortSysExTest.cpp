@@ -34,6 +34,21 @@ int main()
         Require((sum & 127) == 0, "GS checksum wrong");
         auto gsLocal = route(block[0].Data, 2);
         Require(gsLocal.size() == 1 && gsLocal[0].Port == 2, "GS part message was broadcast");
+        const std::vector<uint8_t> singlePort{0};
+        auto native = PortSysEx::Route(gs.data(), gs.size(), 0, singlePort, 4);
+        Require(native.size() == 1 && native[0].Port == 0 && native[0].Data == gs,
+            "Single-port native B-block SysEx was dropped or rewritten");
+        auto reverse = route(gs, 2);
+        Require(reverse.size() == 1 && reverse[0].Port == 0 && reverse[0].Data[5] == 0x40,
+            "GS opposite-group address from B did not reach A");
+        const std::vector<uint8_t> absolutePart{0xF0,0x43,0x10,0x4C,8,27,7,3,0xF7};
+        auto nativeMU = PortSysEx::Route(absolutePart.data(), absolutePart.size(), 0, singlePort, 4);
+        Require(nativeMU.size() == 1 && nativeMU[0].Data == absolutePart,
+            "Native single-instance MU part handling was replaced");
+        const std::vector<uint8_t> absoluteAssignment{0xF0,0x43,0x10,0x4C,3,1,0x0C,27,0xF7};
+        auto nativeAssignment = PortSysEx::Route(absoluteAssignment.data(), absoluteAssignment.size(), 0, singlePort, 4);
+        Require(nativeAssignment.size() == 1 && nativeAssignment[0].Data == absoluteAssignment,
+            "Undeclared native MU assignment was disabled");
         gs[9] ^= 1;
         auto malformed = route(gs);
         Require(malformed.size() == 1 && malformed[0].Port == 0 && malformed[0].Data == gs, "Invalid checksum rewritten");

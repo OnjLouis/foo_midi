@@ -102,6 +102,7 @@ public:
 
         // MIDI
         COMMAND_HANDLER_EX(IDC_MIDI_FLAVOR,                 CBN_SELCHANGE, OnSelectionChange)
+        COMMAND_HANDLER_EX(IDC_MU_VOICE_MAP,                CBN_SELCHANGE, OnSelectionChange)
 
         COMMAND_HANDLER_EX(IDC_MIDI_EFFECTS,                BN_CLICKED, OnButtonClick)
         COMMAND_HANDLER_EX(IDC_MIDI_USE_MT32EMU_WITH_MT32,  BN_CLICKED, OnButtonClick)
@@ -353,6 +354,7 @@ void RootDialog::apply()
     // MIDI
     {
         CfgMIDIFlavor         = (t_int32) SendDlgItemMessage(IDC_MIDI_FLAVOR, CB_GETCURSEL);
+        CfgMUVoiceMap         = (t_int32) MUVoiceMap::FromConfig(SendDlgItemMessage(IDC_MU_VOICE_MAP, CB_GETCURSEL));
 
         CfgUseMIDIEffects     = (t_int32) SendDlgItemMessage(IDC_MIDI_EFFECTS, BM_GETCHECK) ? 0 : 1;
         CfgUseMT32EmuWithMT32 = (t_int32) SendDlgItemMessage(IDC_MIDI_USE_MT32EMU_WITH_MT32, BM_GETCHECK);
@@ -437,6 +439,7 @@ void RootDialog::reset()
         GetDlgItem(IDC_MIDI_EFFECTS).EnableWindow(SupportsFlavors);
 
         SendDlgItemMessage(IDC_MIDI_FLAVOR,                 CB_SETCURSEL, DefaultMIDIFlavor);
+        SendDlgItemMessage(IDC_MU_VOICE_MAP,                CB_SETCURSEL, (WPARAM) MUVoiceMap::Mode::None);
 
         SendDlgItemMessage(IDC_TOUHOU_LOOPS,                BM_SETCHECK, DefaultDetectTouhouLoops);
         SendDlgItemMessage(IDC_RPGMAKER_LOOPS,              BM_SETCHECK, DefaultDetectRPGMakerLoops);
@@ -667,6 +670,11 @@ BOOL RootDialog::OnInitDialog(CWindow, LPARAM)
 
         ::SendMessage(w, CB_SETCURSEL, (WPARAM) CfgMIDIFlavor, 0);
 
+        auto map = GetDlgItem(IDC_MU_VOICE_MAP);
+        for (const auto * name : {"Do not send (use MIDI file)", "MU80 / Basic", "MU100 / Native"})
+            ::uSendMessageText(map, CB_ADDSTRING, 0, name);
+        ::SendMessage(map, CB_SETCURSEL, (WPARAM) MUVoiceMap::FromConfig(CfgMUVoiceMap), 0);
+
         SendDlgItemMessage(IDC_MIDI_EFFECTS,               BM_SETCHECK, (WPARAM) (CfgUseMIDIEffects ? 0 : 1));
         SendDlgItemMessage(IDC_MIDI_USE_MT32EMU_WITH_MT32, BM_SETCHECK, (WPARAM) CfgUseMT32EmuWithMT32);
         SendDlgItemMessage(IDC_MIDI_USE_SC_WITH_GS,        BM_SETCHECK, (WPARAM) CfgUseSCWithGS);
@@ -737,6 +745,7 @@ void RootDialog::OnSelectionChange(UINT, int, CWindow)
 /// </summary>
 void RootDialog::OnButtonClick(UINT, int, CWindow)
 {
+    UpdateDialog();
     OnChanged();
 }
 
@@ -876,6 +885,7 @@ void RootDialog::OnPlayerTypeChange(UINT, int, CWindow w)
             GetDlgItem(ControlId).EnableWindow(IsBASSMIDI);
     }
 */
+    UpdateDialog();
     OnChanged();
 }
 
@@ -964,6 +974,10 @@ bool RootDialog::HasChanged()
         if (SendDlgItemMessage(IDC_MIDI_FLAVOR, CB_GETCURSEL) != CfgMIDIFlavor)
             return true;
 
+        if ((t_int32) MUVoiceMap::FromConfig(SendDlgItemMessage(IDC_MU_VOICE_MAP, CB_GETCURSEL)) !=
+            (t_int32) MUVoiceMap::FromConfig(CfgMUVoiceMap))
+            return true;
+
         if (SendDlgItemMessage(IDC_MIDI_EFFECTS, BM_GETCHECK) != (CfgUseMIDIEffects ? 0 : 1))
             return true;
 
@@ -1011,6 +1025,12 @@ void RootDialog::OnChanged()
 /// </summary>
 void RootDialog::UpdateDialog() const noexcept
 {
+    // Applies only to VST instruments, including the optional XG override.
+    const bool SupportsMUMap = _SelectedPlayer.Type == PlayerType::VSTi ||
+        SendDlgItemMessage(IDC_MIDI_USE_VSTI_WITH_XG, BM_GETCHECK) == BST_CHECKED;
+    GetDlgItem(IDC_MU_VOICE_MAP_TEXT).EnableWindow(SupportsMUMap);
+    GetDlgItem(IDC_MU_VOICE_MAP).EnableWindow(SupportsMUMap);
+
     // MIDI Flavors
     pfc::string FilePath = CfgVSTiXGPlugInFilePath;
 

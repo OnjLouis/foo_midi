@@ -71,6 +71,13 @@ inline std::vector<Packet> Route(const uint8_t * data, size_t size, uint32_t sou
         broadcast();
         return result;
     }
+    // MU Basic/Native voice-map selection is device-wide, not a part setting.
+    if (size == 9 && bytes[1] == 0x43 && (bytes[2] & 0xF0) == 0x10 && bytes[3] == 0x49 &&
+        bytes[4] == 0 && bytes[5] == 0 && bytes[6] == 0x12 && bytes[7] <= 1)
+    {
+        broadcast();
+        return result;
+    }
     if (size >= 9 && bytes[1] == 0x43 && (bytes[2] & 0xF0) == 0x10 && bytes[3] == XGModel)
     {
         const uint8_t high = bytes[4], middle = bytes[5], low = bytes[6];

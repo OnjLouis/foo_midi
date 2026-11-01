@@ -5,6 +5,7 @@
 #include "../vsthost/MIDIPorts.h"
 
 #include "Player.h"
+#include "MUVoiceMap.h"
 
 typedef void * HANDLE;
 
@@ -24,6 +25,7 @@ public:
     // Configuration
     void GetChunk(std::vector<uint8_t> & data);
     void SetChunk(const void * data, size_t size);
+    void SetMUVoiceMap(MUVoiceMap::Mode mode) noexcept { _MUVoiceMap = mode; }
 
     // Editor
     bool HasEditor();
@@ -70,6 +72,7 @@ public:
 
 private:
     uint32_t _ProcessorArchitecture;
+    MUVoiceMap::Mode _MUVoiceMap = MUVoiceMap::Mode::None;
     bool _IsCOMInitialized;
 
     fs::path _FilePath;

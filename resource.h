@@ -9,12 +9,12 @@
 #define NUM_FILE_MAJOR              3
 #define NUM_FILE_MINOR              2
 #define NUM_FILE_PATCH              3
-#define NUM_FILE_PRERELEASE         3
+#define NUM_FILE_PRERELEASE         4
 
 #define NUM_PRODUCT_MAJOR           3
 #define NUM_PRODUCT_MINOR           2
 #define NUM_PRODUCT_PATCH           3
-#define NUM_PRODUCT_PRERELEASE      3
+#define NUM_PRODUCT_PRERELEASE      4
 
 /** Component specific **/
 
@@ -84,6 +84,8 @@
 #define IDC_MIDI_USE_SC_WITH_GS             1022
 #define IDC_MIDI_USE_VSTI_WITH_XG           1023
 #define IDC_MIDI_DETECT_EXTRA_DRUM          1024
+#define IDC_MU_VOICE_MAP_TEXT               1025
+#define IDC_MU_VOICE_MAP                    1026
 
 /** Dialog: Preferences FM Synthesis **/
 

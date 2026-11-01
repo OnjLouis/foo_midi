@@ -9,6 +9,7 @@
 #include <sdk/advconfig_impl.h>
 
 #include "ConfigurationMap.h"
+#include "../Players/MUVoiceMap.h"
 
 #include <fluidsynth.h>
 #include <mt32emu.h>
@@ -197,6 +198,7 @@ extern cfg_var_modern::cfg_int
     CfgNukePanning,
 
     CfgMIDIFlavor,
+    CfgMUVoiceMap,
     CfgUseMIDIEffects,
     CfgUseMT32EmuWithMT32,
     CfgUseVSTiWithXG;

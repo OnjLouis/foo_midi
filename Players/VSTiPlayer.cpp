@@ -151,7 +151,12 @@ bool Player::Startup()
 
     Configure(_MIDIFlavor, _FilterEffects);
 
-    return true;
+    // This runs again after a backwards seek restarts the host. Port routing
+    // applies the selection to every declared instance before song events.
+    if (const auto * message = MUVoiceMap::Message(_MUVoiceMap))
+        SendSysEx(message->data(), message->size(), 0);
+
+    return _IsStarted;
 }
 
 void Player::Shutdown()
@@ -206,7 +211,7 @@ void Player::SendEvent(uint32_t data)
 
 void Player::SendSysEx(const uint8_t * data, size_t size, uint32_t portNumber)
 {
-    for (const auto & packet : PortSysEx::Route(data, size, portNumber, _PortNumbers, GetPortCount()))
+    for (const auto & packet : MUVoiceMap::Route(data, size, portNumber, _PortNumbers, GetPortCount(), _MUVoiceMap))
     {
         const uint32_t SizeAndPort = static_cast<uint32_t>(packet.Data.size()) | (packet.Port << 24);
         WriteBytes(8);
@@ -230,7 +235,7 @@ void Player::SendEvent(uint32_t data, uint32_t time)
 
 void Player::SendSysEx(const uint8_t * data, size_t size, uint32_t portNumber, uint32_t time)
 {
-    for (const auto & packet : PortSysEx::Route(data, size, portNumber, _PortNumbers, GetPortCount()))
+    for (const auto & packet : MUVoiceMap::Route(data, size, portNumber, _PortNumbers, GetPortCount(), _MUVoiceMap))
     {
         const uint32_t SizeAndPort = static_cast<uint32_t>(packet.Data.size()) | (packet.Port << 24);
         WriteBytes(11);

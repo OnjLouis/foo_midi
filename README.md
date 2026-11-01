@@ -19,6 +19,13 @@ updates and limitations, or [technical notes](docs/Yamaha-MIDI-Ports.md).
 with the component version, player backend, plugin and reproducible MIDI case.
 Do not upload ROMs or other files you do not have permission to share.
 
+Candidate 3.2.3.4 adds an optional **MU map (VST)** preference: send nothing
+(the default), MU80 / Basic, or MU100 / Native. The map is independent of
+Flavor and applies at VST playback startup and after recognized resets,
+including after seeking restarts the instrument. Explicit voice-map messages
+in a MIDI file remain effective. This selects a compatible MU instrument's
+voice map; it does not emulate an MU80 or change the instrument's effects.
+
 [foo_midi](https://github.com/stuerp/foo_midi/releases) is a [foobar2000](https://www.foobar2000.org/) component that adds playback of MIDI files to foobar2000.
 
 It is based on [foo_midi](https://gitlab.com/kode54/foo_midi) by [kode54](https://gitlab.com/kode54).

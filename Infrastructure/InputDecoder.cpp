@@ -370,6 +370,8 @@ void InputDecoder::decode_initialize(unsigned subSongIndex, unsigned flags, abor
 
             auto Player = new VSTi::Player;
 
+            Player->SetMUVoiceMap(MUVoiceMap::FromConfig(CfgMUVoiceMap));
+
             if (!Player->LoadVST((const char8_t *) Preset._PlugInFilePath.c_str()))
                 throw pfc::exception(pfc::string("Unable to load VSTi plug-in from \"") + Preset._PlugInFilePath + "\"");
 

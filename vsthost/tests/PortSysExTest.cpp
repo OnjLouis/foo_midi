@@ -19,6 +19,15 @@ int main()
         Require(receive[0].Data[7] == 11, "MU receive channel must be local");
         auto reset = route({0xF0,0x43,0x10,0x4C,0,0,0x7E,0,0xF7});
         Require(reset.size() == 3, "XG reset must reach all declared ports");
+        auto muBasic = route({0xF0,0x43,0x10,0x49,0,0,0x12,0,0xF7});
+        Require(muBasic.size() == 3, "MU voice map must reach all declared ports");
+        auto muNative = route({0xF0,0x43,0x12,0x49,0,0,0x12,1,0xF7}, 2);
+        Require(muNative.size() == 3 && muNative[0].Data[2] == 0x12,
+            "MU Native map from another port must preserve device ID and reach the device");
+        Require(route({0xF0,0x43,0x10,0x49,0,0,0x12,2,0xF7}).size() == 1,
+            "Unknown MU map value must not be broadcast");
+        Require(route({0xF0,0x43,0x10,0x49,0,0,0x13,0,0xF7}).size() == 1,
+            "Unknown MU parameter must not be broadcast");
         auto local = route({0xF0,0x43,0x10,0x4C,8,11,7,3,0xF7}, 2);
         Require(local.size() == 1 && local[0].Port == 2 && local[0].Data[5] == 11, "Local B part must stay on B");
         auto insert = route({0xF0,0x43,0x10,0x4C,3,1,0x0C,27,0xF7});

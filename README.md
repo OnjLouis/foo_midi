@@ -19,7 +19,7 @@ updates and limitations, or [technical notes](docs/Yamaha-MIDI-Ports.md).
 with the component version, player backend, plugin and reproducible MIDI case.
 Do not upload ROMs or other files you do not have permission to share.
 
-Candidate 3.2.3.4 adds an optional **MU map (VST)** preference: send nothing
+Version 3.2.3.4 adds an optional **MU map (VST)** preference: send nothing
 (the default), MU80 / Basic, or MU100 / Native. The map is independent of
 Flavor and applies at VST playback startup and after recognized resets,
 including after seeking restarts the instrument. Explicit voice-map messages

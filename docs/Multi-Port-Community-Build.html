@@ -14,7 +14,7 @@
 <body>
 <main>
   <h1>MIDI Player: Multi-Port Community Build</h1>
-  <p>Candidate version 3.2.3.4 for foobar2000 2.0 or later on Windows, in either 32-bit or 64-bit form. Version 3.2.3.3 remains the published preview until a new release is announced.</p>
+  <p>Version 3.2.3.4. Public community preview for foobar2000 2.0 or later on Windows, in either 32-bit or 64-bit form.</p>
   <p>This is OnjLouis's community fork of Peter Stuer's foo_midi, itself based on Christopher Snowhill's component. It improves multi-port Yamaha and Roland MIDI playback without changing your MIDI files or synthesizer sounds. It is not an official upstream build.</p>
   <nav aria-label="Guide sections"><ul>
     <li><a href="#install">Installation</a></li>
@@ -44,11 +44,12 @@
   </ul>
   <p>Track count is not channel count. Thirty-two tracks may still share sixteen channels; independent channel groups require port metadata or one of the strictly recognized Roland layouts. The build does not guess solely from track count.</p>
   <h2 id="mu-map">MU voice-map selection</h2>
-  <p>In File, Preferences, Input, MIDI Player, select <strong>MU map (VST)</strong>. Its keyboard mnemonic is Alt+M. The choices are <strong>Do not send (use MIDI file)</strong>, <strong>MU80 / Basic</strong> and <strong>MU100 / Native</strong>. Apply the setting and restart playback of the song. The default sends no extra map message, preserving the existing choice made by the MIDI or instrument.</p>
+  <p>Open MIDI Player preferences (under File, Preferences, Playback, Decoding in current foobar2000 versions), then select <strong>MU map (VST)</strong>. Its keyboard mnemonic is Alt+M. The choices are <strong>Do not send (use MIDI file)</strong>, <strong>MU80 / Basic</strong> and <strong>MU100 / Native</strong>. Apply the setting and stop and restart playback of the song from the beginning; pausing and resuming is not sufficient. The default sends no extra map message, preserving the existing choice made by the MIDI or instrument.</p>
   <p>This is a global VST-backend preference, including the optional VST instrument used for XG files. It is separate from Flavor: selecting a map does not force XG or GS mode. It is not saved into per-song preset tags and never rewrites MIDI files. Non-VST backends are unaffected. Instruments that do not implement Yamaha MU voice-map selection may ignore it.</p>
   <p>The selected map is sent to all declared VST ports at instrument startup, including when a backwards seek restarts the instrument. It is reapplied immediately after recognized GM, GM2, GS and XG resets on their actual destinations, at the reset's timestamp. Explicit map messages in the MIDI are retained and can subsequently change the map until another reset reapplies the preference.</p>
   <p>MU80 / Basic sends <code>F0 43 10 49 00 00 12 00 F7</code>; MU100 / Native sends <code>F0 43 10 49 00 00 12 01 F7</code>. These use Yamaha device number 1. Recognized voice-map messages from the MIDI are device-wide and reach every declared VST context, retaining their original device number.</p>
   <p>Voice-map selection is not full MU80 hardware emulation and does not replace the MU instrument's samples, effects, panning or polyphony. It is not a fix for reported organ clicks. Thanks to Yamamoto for suggesting a player-side selection instead of editing MIDI files.</p>
+  <p>For a listening comparison, use a MIDI that does not explicitly select its own MU map. PhoenixA and PhoenixB are examples from the reported demos; F-Cool and R-love explicitly select Native and can override Basic. Not every patch changes between maps, so a subtle or inaudible difference alone does not prove a fault. Please report the filename, passage, instrument version and selected map when comparing with a reference.</p>
   <h2 id="limits">Limits</h2>
   <p>Separate VST instances are not a single hardware module. They do not share its polyphony, global effect processors or cross-port receive-channel reassignment. Recognized parameters are adapted, but proprietary bulk dumps and unknown messages are not translated. Complete hardware parity is not promised.</p>
   <p>A destination must be declared by the MIDI file. If absent, the original SysEx is preserved on its source rather than inventing a port. Declared event ports beyond the backend's capacity are not merged into another group. Existing port-number normalization is retained.</p>

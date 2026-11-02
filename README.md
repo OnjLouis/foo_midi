@@ -3,6 +3,20 @@
 
 ## Multi-Port Community Build
 
+Version 3.2.3.5 adds **MIDI output (external device)**: browse a Foobar playlist
+and play through a selected Windows MIDI port. Choose the player in MIDI Player
+preferences, press Configure, select the port, then apply and restart the track.
+External output uses the playback clock rather than decoder prefetch and supports
+ordered SysEx, pause/resume, seeking and track-change note cleanup. Live Sound
+Canvas tests included SysEx-heavy Roland demos and transport changes.
+
+External output supports one logical MIDI port and plays a single pass plus the
+configured decay time. It does not render audio into Foobar or use its audio
+volume/effects, internal MIDI loops or software-synth flavor/MU-map overrides.
+Conversion and ReplayGain require a software player. A missing or ambiguous
+output fails rather than falling back to another device. Seeking restarts held
+notes and can replay large state dumps; it is not sample-accurate audio seeking.
+
 This community fork adds multi-port routing for Yamaha and Roland MIDI files,
 including four-port VST playback and destination-aware SysEx routing. It is
 based on stuerp/foo_midi 3.2.3.0, with upstream credits and licenses preserved.

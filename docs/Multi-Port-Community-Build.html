@@ -14,9 +14,10 @@
 <body>
 <main>
   <h1>MIDI Player: Multi-Port Community Build</h1>
-  <p>Version 3.2.3.5, experimental candidate. This is not a published release. For foobar2000 2.0 or later on Windows, in either 32-bit or 64-bit form.</p>
+  <p>Version 3.2.3.5. Community preview for foobar2000 2.0 or later on Windows, in either 32-bit or 64-bit form.</p>
   <p>This is OnjLouis's community fork of Peter Stuer's foo_midi, itself based on Christopher Snowhill's component. It improves multi-port Yamaha and Roland MIDI playback without changing your MIDI files or synthesizer sounds. It is not an official upstream build.</p>
   <nav aria-label="Guide sections"><ul>
+    <li><a href="#changelog">Changelog</a></li>
     <li><a href="#install">Installation</a></li>
     <li><a href="#changes">What changes</a></li>
     <li><a href="#mu-map">MU voice-map selection</a></li>
@@ -26,6 +27,11 @@
     <li><a href="#feedback">Testing and feedback</a></li>
     <li><a href="#credits">Credits and source</a></li>
   </ul></nav>
+  <h2 id="changelog">Changelog</h2>
+  <h3>3.2.3.5</h3>
+  <p>Play MIDI files through a selected Windows MIDI output, including a connected instrument or a virtual port feeding another application. Adds a native port selector, playback-clock scheduling, ordered mid-song SysEx, and note cleanup and state restoration for pause, seek and track changes. Existing software-synth playback remains available.</p>
+  <h3>3.2.3.4</h3>
+  <p>Added optional MU80 / Basic and MU100 / Native voice-map selection for compatible VST instruments.</p>
   <h2 id="install">Installation</h2>
   <ol>
     <li>Back up your foobar2000 profile and existing foo_midi component with foobar2000 closed.</li>
@@ -52,22 +58,22 @@
   <p>Voice-map selection is not full MU80 hardware emulation and does not replace the MU instrument's samples, effects, panning or polyphony. It is not a fix for reported organ clicks. Thanks to Yamamoto for suggesting a player-side selection instead of editing MIDI files.</p>
   <p>For a listening comparison, use a MIDI that does not explicitly select its own MU map. PhoenixA and PhoenixB are examples from the reported demos; F-Cool and R-love explicitly select Native and can override Basic. Not every patch changes between maps, so a subtle or inaudible difference alone does not prove a fault. Please report the filename, passage, instrument version and selected map when comparing with a reference.</p>
   <h2 id="external-midi">External MIDI output</h2>
-  <p>This experimental option sends MIDI to a connected instrument or a virtual MIDI port rather than rendering it through a software synthesizer. Select <strong>MIDI output (external device)</strong> in MIDI Player preferences, choose <strong>Configure</strong>, then select the MIDI output and press OK. Apply the preferences and restart the track. In the output dialog, Alt+O focuses the port list; Enter accepts and Escape cancels.</p>
+  <p>This option sends MIDI to a connected instrument or a virtual MIDI port rather than rendering it through a software synthesizer. Select <strong>MIDI output (external device)</strong> in MIDI Player preferences, choose <strong>Configure</strong>, then select the MIDI output and press OK. Apply the preferences and restart the track. In the output dialog, Alt+O focuses the port list; Enter accepts and Escape cancels.</p>
   <p>Browse your normal playlist and press Enter on a MIDI file to play it. Listen through the instrument's own audio connection. Foobar's audio volume, mute, equalizer and audio effects do not control that instrument. A loopMIDI port also needs a receiving application, such as an instrument host.</p>
   <p>The saved port is resolved by name, not by its current Windows device number. If it is unavailable or its name is ambiguous, playback stops with an error; another output is never substituted. Reconnect the device, ensure each port has a unique name, and restart playback.</p>
   <p>Only normal playback can send MIDI. Conversion and ReplayGain scanning require selecting a software synthesizer instead. Files using multiple independent MIDI ports are rejected rather than merged. External output plays a single pass of the file, followed by the configured decay time; the component's internal loop and fade settings are not applied. Foobar's playlist repeat remains available.</p>
   <p>Bank changes, programs, controllers, pitch bends and complete SysEx messages are sent in file order, including custom-voice dumps later in a song. Software-synth flavor, MU-map and MIDI-message filter options are not injected into external output. MIDI files can change instrument settings; use files appropriate for your hardware.</p>
   <p>Pause, stop and track changes silence the previous playback. Seeking and resuming restore earlier controller, program and SysEx state and restart notes still held at the selected position. This is not sample-accurate audio seeking: a restarted note begins its attack again, and a large custom-voice dump can delay restoration. The transport stops sending and silences notes if Foobar's playback-clock updates stall.</p>
-  <p>Hardware timing, pause and seek behavior, and screen-reader operation of the new port selector still require real-world acceptance testing. This candidate is not a claim of verified hardware fidelity.</p>
+  <p>Live testing through Sound Canvas covered ordinary playback, SysEx-heavy Roland demos, pause/resume, forward and backward seeks and changing files without reported stuck notes or missing parts. The port selector uses native labelled Windows controls. Other MIDI drivers and physical instruments have not all been tested; hardware fidelity and sample-accurate timing are not promised.</p>
   <h2 id="limits">Software-synth limits</h2>
   <p>Separate VST instances are not a single hardware module. They do not share its polyphony, global effect processors or cross-port receive-channel reassignment. Recognized parameters are adapted, but proprietary bulk dumps and unknown messages are not translated. Complete hardware parity is not promised.</p>
   <p>A destination must be declared by the MIDI file. If absent, the original SysEx is preserved on its source rather than inventing a port. Declared event ports beyond the backend's capacity are not merged into another group. Existing port-number normalization is retained.</p>
   <p>Additional instances increase resource use according to the instrument being loaded. Lazy creation avoids starting unused instances, but four expensive instruments can still require substantial CPU and memory. Single-port files should retain their existing routing.</p>
   <h2 id="updates">Updates and rollback</h2>
   <p>Updates to this community fork are manual: download its newest component package, install it through Components and restart. There is no added automatic updater. The upstream component catalogue does not track this fork, and installing an upstream build may replace these changes.</p>
-  <p>The new MU map preference defaults to sending nothing; existing flavor, instrument and song-preset settings are not migrated or rewritten. To roll back, install the previously retained foo_midi component package and restart. Older builds ignore the new preference. Your profile backup is a separate safeguard; do not overwrite settings indiscriminately. Do not load old and new DLLs together.</p>
+  <p>The MU map preference defaults to sending nothing. External MIDI output is opt-in and has no default port; existing software-player settings continue to work. To return from external output to a software synthesizer, select that player and instrument again and restart playback. Before rolling back to a version without external MIDI output, select a software player, then install the previously retained component package and restart. Your profile backup is a separate safeguard; do not overwrite settings indiscriminately. Do not load old and new DLLs together.</p>
   <h2 id="feedback">Testing and feedback</h2>
-  <p>Parser and instrument-bridge regression tests pass in both architectures. They cover independent notes and programs, timing, SysEx, reset cycles, saved state, later port changes, unsupported ports, lazy instance creation and preserved MIDI bytes. Corpus audits and listening checks also covered multi-port Yamaha percussion and Roland demos. Long-running workloads and all instrument combinations have not been exhaustively tested.</p>
+  <p>Seven automated regression tests pass in each architecture, covering the parser, instrument bridge and external MIDI timeline, worker lifecycle and mock-driver buffer ownership. Coverage includes independent notes and programs, timing, SysEx, reset cycles, saved state, later port changes, unsupported or missing ports, lazy instance creation, cancellation and preserved MIDI bytes. Listening checks also covered multi-port Yamaha percussion, Roland demos and external Sound Canvas playback. Long-running workloads and all instrument combinations have not been exhaustively tested.</p>
   <p>Please <a href="https://github.com/OnjLouis/foo_midi/issues">report reproducible issues</a> with your foobar2000 version and bitness, component version, player backend, instrument version, and the MIDI filename and passage. Comparisons with the upstream component or a permitted hardware recording are useful. Share files only when you have permission; no ROMs or credentials are needed in reports.</p>
   <h2 id="credits">Credits and source</h2>
   <ul>

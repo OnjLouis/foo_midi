@@ -397,3 +397,11 @@ FodyWeavers.xsd
 # JetBrains Rider
 *.sln.iml
 /3rdParty/libedmidi-Mitsutaka Okazaki
+
+# Private maintainer coordination and release tooling.
+HANDOVER.md
+AGENTS.md
+SmokeTest.ps1
+Test-ReleasePrivacy.ps1
+CommunitySearch.ps1
+GITHUB-RELEASE-RULES.md

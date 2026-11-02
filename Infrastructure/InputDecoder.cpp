@@ -134,6 +134,7 @@ void InputDecoder::open(service_ptr_t<file> file, const char * filePath, t_input
         filesystem::g_open(file, filePath, filesystem::open_mode_read, abortHandler);
 
     _FilePath = filesystem::g_get_native_path(filePath);
+    _ExternalPath = filePath;
 
     {
         _FileStats = file->get_stats(abortHandler);
@@ -267,6 +268,7 @@ void InputDecoder::decode_initialize(unsigned subSongIndex, unsigned flags, abor
 
     _DecoderFlags = flags;
     _IsFirstBlock = true;
+    _ExternalSequence.reset();
 
     // Initialize time parameters.
     {
@@ -317,6 +319,67 @@ void InputDecoder::decode_initialize(unsigned subSongIndex, unsigned flags, abor
 
             SysExDumps.Merge(_Container, abortHandler);
         }
+    }
+
+    if (static_cast<PlayerType>(CfgPlayerType.get()) == PlayerType::MCI)
+    {
+        if ((flags & input_flag_playback) == 0)
+            throw pfc::exception("External MIDI output is playback-only. Select a software synthesizer for conversion or ReplayGain scanning.");
+        if (_Player)
+        {
+            delete _Player;
+            _Player = nullptr;
+        }
+        auto Song = std::make_shared<ExternalMIDI::Sequence>();
+        Song->Path = _ExternalPath;
+        Song->Subsong = subSongIndex;
+        Song->Device = pfc::stringcvt::string_wide_from_utf8(CfgExternalMIDIDevice.get()).get_ptr();
+        Song->Duration = static_cast<double>(_Container.GetDuration(subSongIndex, true)) / 1000.0 +
+            std::clamp(static_cast<int>(CfgDecayTime.get()), 0, 60000) / 1000.0;
+        std::vector<midi::message_t> Stream;
+        midi::sysex_table_t SysEx;
+        std::vector<uint8_t> Ports;
+        uint32_t LoopBegin, LoopEnd;
+        _Container.SerializeAsStream(subSongIndex, Stream, SysEx, Ports, LoopBegin, LoopEnd, 0);
+        int UsedPort = -1;
+        size_t Bytes = 0;
+        for (const auto & Item : Stream)
+        {
+            abortHandler.check();
+            ExternalMIDI::Event Event;
+            Event.Seconds = static_cast<double>(Item.Time) / 1000.0;
+            uint8_t Port = static_cast<uint8_t>((Item.Data >> 24) & 0x7F);
+            if (Item.IsSysEx())
+            {
+                const uint8_t * Data;
+                size_t Size;
+                if (!SysEx.GetItem(Item.Data & 0x7FFFFFFFu, Data, Size, Port))
+                    throw pfc::exception("Invalid MIDI SysEx reference.");
+                if (Size < 2 || Size > 16 * 1024 * 1024)
+                    throw pfc::exception("Invalid or oversized external MIDI SysEx message.");
+                Event.SysEx.assign(Data, Data + Size);
+            }
+            else Event.Message = Item.Data & 0x00FFFFFFu;
+            if (UsedPort >= 0 && UsedPort != Port)
+                throw pfc::exception("This file uses multiple MIDI ports. External MIDI output currently supports one port; no messages were sent.");
+            UsedPort = Port;
+            Bytes += sizeof(Event) + Event.SysEx.size();
+            if (Bytes > 64 * 1024 * 1024)
+                throw pfc::exception("This file exceeds the external MIDI sequence size limit.");
+            Song->Events.push_back(std::move(Event));
+        }
+        try { ExternalMIDI::Register(Song); }
+        catch (const std::exception & Error) { throw pfc::exception(Error.what()); }
+        _ExternalSequence = std::move(Song);
+        _PlayerType = PlayerType::MCI;
+        _ActualSampleRate = _RequestedSampleRate;
+        if (_ExternalSequence->Duration * _ActualSampleRate > UINT32_MAX)
+            throw pfc::exception("This file is too long for external MIDI playback.");
+        _FrameCount = static_cast<uint32_t>(std::ceil(_ExternalSequence->Duration * _ActualSampleRate));
+        _FrameIndex = 0;
+        _IsEndOfContainer = false;
+        _LoopRange.Clear();
+        return;
     }
 
     OverridePlayerSelection(Preset, subSongIndex, abortHandler);
@@ -640,17 +703,7 @@ void InputDecoder::decode_initialize(unsigned subSongIndex, unsigned flags, abor
         // MCI
         case PlayerType::MCI:
         {
-            auto Player = new MCIPlayer;
-
-            _Player = Player;
-
-            _Player->SetSampleRate(_RequestedSampleRate);
-            _Player->Configure(Preset._MIDIFlavor, !Preset._UseMIDIEffects);
-
-            if (!_Player->Load(_Container, subSongIndex, _LoopType, _DecayTime, _CleanFlags))
-                throw pfc::exception("Failed to load MIDI stream");
-
-            break;
+            throw pfc::exception("Choose external MIDI output in MIDI Player preferences, not in per-file preset tags.");
         }
 
         // Nuked SC-55
@@ -706,6 +759,20 @@ void InputDecoder::decode_initialize(unsigned subSongIndex, unsigned flags, abor
 /// </summary>
 bool InputDecoder::decode_run(audio_chunk & audioChunk, abort_callback & abortHandler)
 {
+    if (_ExternalSequence)
+    {
+        abortHandler.check();
+        if (_FrameIndex >= _FrameCount) return false;
+        const uint32_t Frames = std::min(4096u, _FrameCount - _FrameIndex);
+        audioChunk.set_data_size(static_cast<size_t>(Frames) * 2);
+        std::fill_n(audioChunk.get_data(), static_cast<size_t>(Frames) * 2, audio_sample(0));
+        audioChunk.set_srate(_ActualSampleRate);
+        audioChunk.set_channels(2);
+        audioChunk.set_sample_count(Frames);
+        _FrameIndex += Frames;
+        _AudioChunkDuration = audioChunk.get_duration();
+        return true;
+    }
     abortHandler.check();
 
     if (_IsEndOfContainer)
@@ -806,6 +873,13 @@ bool InputDecoder::decode_run(audio_chunk & audioChunk, abort_callback & abortHa
 /// </summary>
 void InputDecoder::decode_seek(double timeInSeconds, abort_callback &)
 {
+    if (_ExternalSequence)
+    {
+        if (!std::isfinite(timeInSeconds)) throw pfc::exception("Invalid MIDI seek position.");
+        _FrameIndex = static_cast<uint32_t>(std::clamp(timeInSeconds, 0.0, _ExternalSequence->Duration) * _ActualSampleRate);
+        _IsFirstBlock = true;
+        return;
+    }
     _FrameIndex = (uint32_t) (timeInSeconds * _ActualSampleRate);
 
     _IsFirstBlock = true;
@@ -1131,7 +1205,7 @@ const char * InputDecoder::PlayerTypeNames[15] =
     "OPL",          // Not implemented
     "Nuked OPL3",
     "Secret Sauce",
-    "MCI",          // Not implemented
+    "MIDI output (external device)",
     "Nuked SC-55",
     "FMMIDI",
     "CLAP",

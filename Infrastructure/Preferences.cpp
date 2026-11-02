@@ -26,6 +26,7 @@
 #include "Resource.h"
 
 #include "Configuration.h"
+#include "ExternalMIDI.h"
 #include "Preset.h"
 #include "Encoding.h"
 #include "Log.h"
@@ -218,6 +219,7 @@ private:
 
     std::vector<installed_player_t> _InstalledPlayers;
     installed_player_t _SelectedPlayer;
+    std::wstring _ExternalDevice;
 
     static const int _SampleRates[];
 
@@ -257,7 +259,7 @@ const RootDialog::known_player_t RootDialog::_KnownPlayers[] =
     { "Nuked OPL3",     PlayerType::NukedOPL3,     PlayerIsAlwaysPresent },
     { "Nuked SC-55",    PlayerType::NukedSC55,     PlayerIsNeverPresent },
     { "Secret Sauce",   PlayerType::SecretSauce,   IsSecretSaucePresent },
-    { "MCI",            PlayerType::MCI,           PlayerIsNeverPresent },
+    { "MIDI output (external device)", PlayerType::MCI, PlayerIsAlwaysPresent },
     { "FMMIDI",         PlayerType::FMMIDI,        PlayerIsAlwaysPresent },
 };
 
@@ -286,6 +288,7 @@ t_uint32 RootDialog::get_state()
 /// </summary>
 void RootDialog::apply()
 {
+    CfgExternalMIDIDevice = pfc::stringcvt::string_utf8_from_wide(_ExternalDevice.c_str()).get_ptr();
     // Player Type
     {
         CfgPlayerType = (int) _SelectedPlayer.Type;
@@ -387,6 +390,7 @@ void RootDialog::apply()
 /// </summary>
 void RootDialog::reset()
 {
+    _ExternalDevice.clear();
     _SelectedPlayer = installed_player_t("", PlayerType::Default, "", (size_t) -1, (size_t) -1);
 
     // Player Type
@@ -494,6 +498,7 @@ BOOL RootDialog::OnInitDialog(CWindow, LPARAM)
     #pragma endregion
 
     _SelectedPlayer = installed_player_t("", (PlayerType) CfgPlayerType.get(), CfgPlugInFilePath.get().c_str(), (size_t) CfgCLAPIndex, (size_t) -1);
+    _ExternalDevice = pfc::stringcvt::string_wide_from_utf8(CfgExternalMIDIDevice.get()).get_ptr();
 
     #pragma region VSTi Players
 
@@ -766,6 +771,10 @@ void RootDialog::OnButtonConfig(UINT, int, CWindow)
 
     switch (_SelectedPlayer.Type)
     {
+        case PlayerType::MCI:
+            ExternalMIDI::Configure(m_hWnd, _ExternalDevice);
+            break;
+
         case PlayerType::VSTi:
         {
             VSTi::Player Player;
@@ -894,6 +903,8 @@ void RootDialog::OnPlayerTypeChange(UINT, int, CWindow w)
 /// </summary>
 bool RootDialog::HasChanged()
 {
+    if (_ExternalDevice != pfc::stringcvt::string_wide_from_utf8(CfgExternalMIDIDevice.get()).get_ptr())
+        return true;
     // Player Type
     {
         int SelectedIndex = (int) SendDlgItemMessage(IDC_PLAYER_TYPE, CB_GETCURSEL);
@@ -1042,7 +1053,7 @@ void RootDialog::UpdateDialog() const noexcept
 /// </summary>
 void RootDialog::UpdateConfigureButton() noexcept
 {
-    BOOL Enable = FALSE;
+    BOOL Enable = (_SelectedPlayer.Type == PlayerType::MCI);
 
     if (_SelectedPlayer.PlugInIndex != (size_t) -1)
     {

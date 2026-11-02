@@ -289,6 +289,10 @@ pwsh.exe -NoLogo -NonInteractive -NoProfile -File Build-FB2KComponent.ps1 $(Targ
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Infrastructure\AlbumArt.cpp" />
+    <ClCompile Include="Infrastructure\ExternalMIDI.cpp" />
+    <ClCompile Include="Players\ExternalMIDI\Output.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="Infrastructure\Channels.cpp" />
     <ClCompile Include="Infrastructure\CLAPHost.cpp" />
     <ClCompile Include="Infrastructure\CLAPWindow.cpp" />
@@ -631,6 +635,7 @@ pwsh.exe -NoLogo -NonInteractive -NoProfile -File Build-FB2KComponent.ps1 $(Targ
     <ResourceCompile Include="Infrastructure\PreferencesPaths.rc" />
     <ResourceCompile Include="Infrastructure\PreferencesProcessing.rc" />
     <ResourceCompile Include="Infrastructure\Preferences.rc" />
+    <ResourceCompile Include="Infrastructure\ExternalMIDI.rc" />
     <ResourceCompile Include="Infrastructure\PreferencesWT.rc" />
   </ItemGroup>
   <ItemGroup>

@@ -21,6 +21,7 @@
 #include "Preset.h"
 #include "MIDISysExDumps.h"
 #include "Soundfont.h"
+#include "ExternalMIDI.h"
 
 /** Players **/
 
@@ -181,6 +182,8 @@ private:
 
     // File Properties
     pfc::string _FilePath;
+    std::string _ExternalPath;
+    std::shared_ptr<const ExternalMIDI::Sequence> _ExternalSequence;
 
     t_filestats _FileStats;
     t_filestats2 _FileStats2;

@@ -9,12 +9,12 @@
 #define NUM_FILE_MAJOR              3
 #define NUM_FILE_MINOR              2
 #define NUM_FILE_PATCH              3
-#define NUM_FILE_PRERELEASE         4
+#define NUM_FILE_PRERELEASE         5
 
 #define NUM_PRODUCT_MAJOR           3
 #define NUM_PRODUCT_MINOR           2
 #define NUM_PRODUCT_PATCH           3
-#define NUM_PRODUCT_PRERELEASE      4
+#define NUM_PRODUCT_PRERELEASE      5
 
 /** Component specific **/
 
@@ -254,6 +254,9 @@
 #define IDC_FLUIDSYNTH_DYN_LOADING          2256
 
 #define IDD_CLAP_WINDOW                     2600
+#define IDD_EXTERNAL_MIDI                   2700
+#define IDC_EXTERNAL_MIDI_DEVICE            2701
+#define IDC_EXTERNAL_MIDI_CURRENT           2702
 
 #define IDC_SECRETSAUCE_GAIN_LBL            2701
 #define IDC_SECRETSAUCE_GAIN                2702

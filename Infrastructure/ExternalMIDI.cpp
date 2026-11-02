@@ -3,6 +3,7 @@
 #include "Configuration.h"
 #include "Resource.h"
 #include "../Players/ExternalMIDI/Output.h"
+#include "../Players/ExternalMIDI/Worker.h"
 #include <sdk/initquit.h>
 #include <sdk/play_callback.h>
 #include <sdk/playback_control.h>
@@ -45,147 +46,6 @@ namespace ExternalMIDI
             if ((*It)->Path == Path && (*It)->Subsong == Subsong) return *It;
         return {};
     }
-
-    static double Now() noexcept
-    {
-        return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
-    }
-
-    class Worker
-    {
-    public:
-        struct Request
-        {
-            std::shared_ptr<const Sequence> Song;
-            double Position = 0;
-            double Updated = 0;
-            bool Paused = true;
-            uint64_t Epoch = 0;
-        };
-
-        void Update(Request State)
-        {
-            std::lock_guard<std::mutex> Lock(_Mutex);
-            _Request = std::move(State);
-            _Epoch = _Request.Epoch;
-            if (!_Thread.joinable() && _Request.Song)
-                _Thread = std::thread([this] { Run(); });
-            _Changed.notify_one();
-        }
-
-        void Stop()
-        {
-            {
-                std::lock_guard<std::mutex> Lock(_Mutex);
-                _Quit = true;
-                ++_Epoch;
-                _Changed.notify_one();
-            }
-            if (_Thread.joinable()) _Thread.join();
-        }
-
-        std::string TakeError()
-        {
-            std::lock_guard<std::mutex> Lock(_Mutex);
-            std::string Error;
-            Error.swap(_Error);
-            return Error;
-        }
-
-    private:
-        Request Snapshot()
-        {
-            std::lock_guard<std::mutex> Lock(_Mutex);
-            return _Request;
-        }
-
-        void Run() noexcept
-        {
-            uint64_t ActiveEpoch = ~uint64_t(0);
-            uint64_t FailedEpoch = ~uint64_t(0);
-            std::unique_ptr<Output> Port;
-            std::unique_ptr<Timeline> Events;
-            std::shared_ptr<const Sequence> Song;
-            bool Stale = false;
-            while (!_Quit)
-            {
-                auto State = Snapshot();
-                const auto Cancelled = [this, Epoch = State.Epoch] { return _Quit || _Epoch != Epoch; };
-                try
-                {
-                    if (State.Epoch != ActiveEpoch)
-                    {
-                        if (Port) Port->Close();
-                        Port.reset();
-                        Events.reset();
-                        Song = State.Song;
-                        ActiveEpoch = State.Epoch;
-                        Stale = false;
-                        if (Song && !State.Paused)
-                        {
-                            Port = std::make_unique<Output>();
-                            Port->Open(Song->Device);
-                            Port->Silence();
-                            Events = std::make_unique<Timeline>(*Song);
-                            const auto Restore = Events->Seek(State.Position);
-                            for (const auto & Item : Restore)
-                                if (!Port->Send(Item, Cancelled)) break;
-                        }
-                    }
-                    if (Port && Events && !Cancelled() && FailedEpoch != State.Epoch)
-                    {
-                        State = Snapshot();
-                        Clock Time;
-                        Time.Update(State.Position, State.Updated);
-                        if (!Time.IsFresh(Now()))
-                        {
-                            if (!Stale) Port->Silence();
-                            Stale = true;
-                        }
-                        else
-                        {
-                            if (Stale)
-                            {
-                                for (const auto & Item : Events->Seek(State.Position))
-                                    if (!Port->Send(Item, Cancelled)) break;
-                                Stale = false;
-                            }
-                            Events->DispatchThrough(Time.Position(Now()), [&](const Event & Item) { return Port->Send(Item, Cancelled); });
-                        }
-                    }
-                }
-                catch (const std::exception & Error)
-                {
-                    Events.reset();
-                    Port.reset();
-                    FailedEpoch = State.Epoch;
-                    std::lock_guard<std::mutex> Lock(_Mutex);
-                    _Error = Error.what();
-                }
-                catch (...)
-                {
-                    Events.reset();
-                    Port.reset();
-                    FailedEpoch = State.Epoch;
-                    std::lock_guard<std::mutex> Lock(_Mutex);
-                    _Error = "Unexpected failure in external MIDI output.";
-                }
-                std::unique_lock<std::mutex> Lock(_Mutex);
-                if (!Port || State.Paused)
-                    _Changed.wait(Lock, [&] { return _Quit || _Epoch != ActiveEpoch; });
-                else
-                    _Changed.wait_for(Lock, std::chrono::milliseconds(1));
-            }
-        }
-
-        std::mutex _Mutex;
-        std::condition_variable _Changed;
-        Request _Request;
-        std::atomic<uint64_t> _Epoch{0};
-        std::atomic<bool> _Quit{false};
-        std::thread _Thread;
-        std::string _Error;
-    };
 
     class Transport : public play_callback_static
     {
@@ -256,12 +116,15 @@ namespace ExternalMIDI
         void Tick()
         {
             const auto Error = _Worker.TakeError();
-            if (!Error.empty())
+            if (!Error.second.empty())
             {
-                console::formatter() << "External MIDI: " << Error.c_str();
-                playback_control::get()->stop();
-                popup_message::g_show(Error.c_str(), "MIDI output");
-                return;
+                console::formatter() << "External MIDI: " << Error.second.c_str();
+                if (Error.first == _State.Epoch)
+                {
+                    playback_control::get()->stop();
+                    popup_message::g_show(Error.second.c_str(), "MIDI output");
+                    return;
+                }
             }
             if (_Track.is_empty()) return;
             // playback_control is main-thread-only and must not be called from
@@ -304,8 +167,8 @@ namespace ExternalMIDI
         static Transport * _Instance;
         UINT_PTR _Timer = 0;
         metadb_handle_ptr _Track;
-        Worker _Worker;
-        Worker::Request _State;
+        Worker<Output> _Worker;
+        Worker<Output>::Request _State;
     };
 
     Transport * Transport::_Instance = nullptr;

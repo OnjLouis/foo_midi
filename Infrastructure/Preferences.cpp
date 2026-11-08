@@ -221,6 +221,7 @@ private:
     installed_player_t _SelectedPlayer;
     std::wstring _ExternalDevice;
     std::wstring _ExternalSecondaryDevice;
+    bool _ExternalSplitGS = false;
 
     static const int _SampleRates[];
 
@@ -291,6 +292,7 @@ void RootDialog::apply()
 {
     CfgExternalMIDIDevice = pfc::stringcvt::string_utf8_from_wide(_ExternalDevice.c_str()).get_ptr();
     CfgExternalMIDISecondaryDevice = pfc::stringcvt::string_utf8_from_wide(_ExternalSecondaryDevice.c_str()).get_ptr();
+    CfgExternalMIDISplitGS = _ExternalSplitGS;
     // Player Type
     {
         CfgPlayerType = (int) _SelectedPlayer.Type;
@@ -394,6 +396,7 @@ void RootDialog::reset()
 {
     _ExternalDevice.clear();
     _ExternalSecondaryDevice.clear();
+    _ExternalSplitGS = false;
     _SelectedPlayer = installed_player_t("", PlayerType::Default, "", (size_t) -1, (size_t) -1);
 
     // Player Type
@@ -503,6 +506,7 @@ BOOL RootDialog::OnInitDialog(CWindow, LPARAM)
     _SelectedPlayer = installed_player_t("", (PlayerType) CfgPlayerType.get(), CfgPlugInFilePath.get().c_str(), (size_t) CfgCLAPIndex, (size_t) -1);
     _ExternalDevice = pfc::stringcvt::string_wide_from_utf8(CfgExternalMIDIDevice.get()).get_ptr();
     _ExternalSecondaryDevice = pfc::stringcvt::string_wide_from_utf8(CfgExternalMIDISecondaryDevice.get()).get_ptr();
+    _ExternalSplitGS = CfgExternalMIDISplitGS.get();
 
     #pragma region VSTi Players
 
@@ -776,7 +780,7 @@ void RootDialog::OnButtonConfig(UINT, int, CWindow)
     switch (_SelectedPlayer.Type)
     {
         case PlayerType::MCI:
-            ExternalMIDI::Configure(m_hWnd, _ExternalDevice, _ExternalSecondaryDevice);
+            ExternalMIDI::Configure(m_hWnd, _ExternalDevice, _ExternalSecondaryDevice, _ExternalSplitGS);
             break;
 
         case PlayerType::VSTi:
@@ -908,7 +912,8 @@ void RootDialog::OnPlayerTypeChange(UINT, int, CWindow w)
 bool RootDialog::HasChanged()
 {
     if (_ExternalDevice != pfc::stringcvt::string_wide_from_utf8(CfgExternalMIDIDevice.get()).get_ptr() ||
-        _ExternalSecondaryDevice != pfc::stringcvt::string_wide_from_utf8(CfgExternalMIDISecondaryDevice.get()).get_ptr())
+        _ExternalSecondaryDevice != pfc::stringcvt::string_wide_from_utf8(CfgExternalMIDISecondaryDevice.get()).get_ptr() ||
+        _ExternalSplitGS != CfgExternalMIDISplitGS.get())
         return true;
     // Player Type
     {

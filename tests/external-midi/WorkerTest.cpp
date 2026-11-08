@@ -8,6 +8,7 @@ static std::mutex Mutex;
 static std::condition_variable Changed;
 static std::vector<Event> Messages;
 static std::vector<std::wstring> Destinations;
+static std::vector<double> SentAt;
 static std::vector<std::wstring> Closed;
 static unsigned Opens = 0, Closes = 0, Silences = 0;
 static bool FailOpen = false, BlockDump = false, InDump = false;
@@ -75,6 +76,7 @@ public:
         std::lock_guard<std::mutex> Lock(Mutex);
         Messages.push_back(Item);
         Destinations.push_back(_Name);
+        SentAt.push_back(Now());
         Changed.notify_all();
         return true;
     }
@@ -189,7 +191,7 @@ int main()
 
         auto DualSong = std::make_shared<Sequence>(Sequence{"dual.mid", 0, L"Primary", 8, {
             {0, 0x000005C0, {}, 0},
-            {0, 0, {0xF0, 0x7E, 0x7F, 9, 1, 0xF7}, 1},
+            {0, 0, {0xF0, 0x41, 0x10, 0x42, 0x12, 0x40, 0, 0x7F, 0, 0x41, 0xF7}, 1, true},
             {0, 0x00000CC0, {}, 1},
             {0, 0x00643C90, {}, 0},
             {0, 0x00443C90, {}, 1},
@@ -214,6 +216,8 @@ int main()
                 Messages[Count + 1].SysEx == DualSong->Events[1].SysEx &&
                 Destinations[Count + 3] == L"Primary" && Destinations[Count + 4] == L"Secondary",
                 "both outputs receive their own note and unmodified SysEx events in order");
+            Check(SentAt[Count + 2] - SentAt[Count + 1] >= GSResetSettleSeconds,
+                "shared GS reset leaves the receiving synth time to initialize before the next event");
         }
         Dual.Paused = true;
         ++Dual.Epoch;

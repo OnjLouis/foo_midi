@@ -74,6 +74,7 @@ namespace ExternalMIDI
         {
             uint64_t ActiveEpoch = ~uint64_t(0);
             std::array<std::unique_ptr<Port>, OutputCount> Outputs;
+            std::array<double, OutputCount> Ready{};
             std::unique_ptr<Timeline> Events;
             std::shared_ptr<const Sequence> Song;
             bool Stale = false;
@@ -81,7 +82,17 @@ namespace ExternalMIDI
             {
                 auto State = Snapshot();
                 const auto Cancelled = [this, Epoch = State.Epoch] { return _Quit || _Epoch != Epoch; };
-                const auto Send = [&](const Event & Item) { return Outputs[Item.Port]->Send(Item, Cancelled); };
+                const auto Send = [&](const Event & Item)
+                {
+                    while (Now() < Ready[Item.Port])
+                    {
+                        if (Cancelled()) return false;
+                        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                    }
+                    if (!Outputs[Item.Port]->Send(Item, Cancelled)) return false;
+                    if (Item.SettleAfterSend) Ready[Item.Port] = Now() + GSResetSettleSeconds;
+                    return true;
+                };
                 const auto Silence = [&]
                 {
                     for (const auto & Output : Outputs)

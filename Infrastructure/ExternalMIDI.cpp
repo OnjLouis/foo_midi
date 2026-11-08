@@ -186,8 +186,10 @@ namespace ExternalMIDI
     {
     public:
         enum { IDD = IDD_EXTERNAL_MIDI };
-        DeviceDialog(const std::wstring & Primary, const std::wstring & Secondary) : Selected{Primary, Secondary} { }
+        DeviceDialog(const std::wstring & Primary, const std::wstring & Secondary, bool AdaptGS) :
+            Selected{Primary, Secondary}, SplitGS(AdaptGS) { }
         std::array<std::wstring, OutputCount> Selected;
+        bool SplitGS;
         BEGIN_MSG_MAP(DeviceDialog)
             MESSAGE_HANDLER(WM_INITDIALOG, Init)
             COMMAND_ID_HANDLER(IDOK, Accept)
@@ -200,6 +202,7 @@ namespace ExternalMIDI
             const auto Devices = EnumerateDevices();
             Populate(IDC_EXTERNAL_MIDI_DEVICE, 0, Devices);
             Populate(IDC_EXTERNAL_MIDI_SECONDARY, 1, Devices);
+            CheckDlgButton(IDC_EXTERNAL_MIDI_SPLIT_GS, SplitGS ? BST_CHECKED : BST_UNCHECKED);
             CenterWindow(GetParent());
             return TRUE;
         }
@@ -238,6 +241,7 @@ namespace ExternalMIDI
                 return 0;
             }
             Selected = {_Choices[0][Primary], _Choices[1][Secondary]};
+            SplitGS = IsDlgButtonChecked(IDC_EXTERNAL_MIDI_SPLIT_GS) == BST_CHECKED;
             EndDialog(IDOK);
             return 0;
         }
@@ -245,12 +249,13 @@ namespace ExternalMIDI
         std::array<std::vector<std::wstring>, OutputCount> _Choices;
     };
 
-    bool Configure(HWND Parent, std::wstring & Primary, std::wstring & Secondary)
+    bool Configure(HWND Parent, std::wstring & Primary, std::wstring & Secondary, bool & SplitGS)
     {
-        DeviceDialog Dialog(Primary, Secondary);
+        DeviceDialog Dialog(Primary, Secondary, SplitGS);
         if (Dialog.DoModal(Parent) != IDOK) return false;
         Primary = std::move(Dialog.Selected[0]);
         Secondary = std::move(Dialog.Selected[1]);
+        SplitGS = Dialog.SplitGS;
         return true;
     }
 }

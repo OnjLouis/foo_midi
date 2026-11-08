@@ -14,7 +14,7 @@
 <body>
 <main>
   <h1>MIDI Player: Multi-Port Community Build</h1>
-  <p>Version 3.2.3.6. Community preview for foobar2000 2.0 or later on Windows, in either 32-bit or 64-bit form.</p>
+  <p>Version 3.2.3.7. Community preview for foobar2000 2.0 or later on Windows, in either 32-bit or 64-bit form.</p>
   <p>This is OnjLouis's community fork of Peter Stuer's foo_midi, itself based on Christopher Snowhill's component. It improves multi-port Yamaha and Roland MIDI playback without changing your MIDI files or synthesizer sounds. It is not an official upstream build.</p>
   <nav aria-label="Guide sections"><ul>
     <li><a href="#changelog">Changelog</a></li>
@@ -28,6 +28,8 @@
     <li><a href="#credits">Credits and source</a></li>
   </ul></nav>
   <h2 id="changelog">Changelog</h2>
+  <h3>3.2.3.7</h3>
+  <p>External output can adapt Roland GS setup for a two-port song played across two separate GS synths. Native two-port instruments can keep the original SysEx routing.</p>
   <h3>3.2.3.6</h3>
   <p>External MIDI output can send the two parts of a two-port file to different Windows MIDI devices. A single-port file still uses the primary output only.</p>
   <h3>3.2.3.5</h3>
@@ -64,7 +66,9 @@
   <p>Browse your normal playlist and press Enter on a MIDI file to play it. Listen through the instrument's own audio connection. Foobar's audio volume, mute, equalizer and audio effects do not control that instrument. A loopMIDI port also needs a receiving application, such as an instrument host.</p>
   <p>Single-port files use only the primary device. In a two-port file the first and second used logical ports (normally A and B) go to the primary and secondary devices respectively. A two-port file needs both outputs; files using more than two are rejected rather than merged. Each saved output is resolved by its unique name, not its current Windows device number. If a required output is unavailable or ambiguous, the track stops with an error and no substitute is used.</p>
   <p>Only normal playback can send MIDI. Conversion and ReplayGain scanning require a software synthesizer. External output plays a single pass plus the configured decay time; internal loop and fade settings do not apply. Foobar's playlist repeat remains available.</p>
-  <p>Bank changes, programs, controllers, pitch bends and complete SysEx messages go to the file's assigned output in file order. SysEx is sent unchanged, not rewritten or copied to the other instrument. Use files intended for your gear; two independent instruments do not necessarily interpret a file made for one shared multi-port synth the same way. A long SysEx transfer can delay later events on either output. Software-synth flavor, MU-map and MIDI-message filters are not applied.</p>
+  <p>Bank changes, programs, controllers, pitch bends and complete SysEx messages go to their assigned output in file order. By default SysEx is sent unchanged. Leave this default for a single Sound Canvas with two inputs, or for files that already set up each synth independently.</p>
+  <p>To split a two-port Sound Canvas file between two separate GS-compatible synths, connect each to its normal first MIDI input and enable <strong>Adapt Roland GS for separate synths</strong> (Alt+G) in Configure. Apply and restart the track. Primary's recognized GS reset and shared effects go to both outputs; SC-88 mode changes become GS resets, without switching either unit's operating mode. Alternate-group writes for declared A/B ports go only to the other output with a corrected address and checksum. Local changes, unknown messages and non-GS SysEx are not copied. Single-port files remain unchanged. Both devices must accept the file's GS device ID; this does not reproduce a shared effects processor or translate GS to another synth protocol.</p>
+  <p>A long SysEx transfer can delay later events on either output. Software-synth flavor, MU-map and MIDI-message filters are not applied.</p>
   <p>Pause, stop and track changes silence the previous playback. Seeking and resuming restore earlier controller, program and SysEx state and restart notes still held at the selected position. This is not sample-accurate audio seeking: a restarted note begins its attack again, and a large custom-voice dump can delay restoration. The transport stops sending and silences notes if Foobar's playback-clock updates stall.</p>
   <p>Live testing through Sound Canvas covered ordinary playback, SysEx-heavy Roland demos, pause/resume, forward and backward seeks and changing files without reported stuck notes or missing parts. The port selector uses native labelled Windows controls. Other MIDI drivers and physical instruments have not all been tested; hardware fidelity and sample-accurate timing are not promised.</p>
   <h2 id="limits">Software-synth limits</h2>

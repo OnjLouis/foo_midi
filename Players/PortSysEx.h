@@ -19,6 +19,13 @@ struct Packet
     std::vector<uint8_t> Data;
 };
 
+inline uint8_t GSChecksum(const uint8_t * data, size_t size) noexcept
+{
+    unsigned sum = 0;
+    for (size_t i = 0; i < size; ++i) sum += data[i];
+    return static_cast<uint8_t>((0u - sum) & 0x7F);
+}
+
 // Adapt shared-device addresses to independent 16-channel plugin contexts.
 // The original SMF and SysEx table remain untouched, including their timestamps.
 inline std::vector<Packet> Route(const uint8_t * data, size_t size, uint32_t source,
@@ -106,9 +113,7 @@ inline std::vector<Packet> Route(const uint8_t * data, size_t size, uint32_t sou
     }
     if (size >= 11 && bytes[1] == 0x41 && bytes[3] == GSModel && bytes[4] == GSDataSet)
     {
-        unsigned checksum = 0;
-        for (size_t i = 5; i + 1 < size; ++i) checksum += bytes[i];
-        if ((checksum & 0x7F) == 0)
+        if (GSChecksum(bytes.data() + 5, size - 7) == bytes[size - 2])
         {
             const auto rawSource = source < ports.size() ? ports[source] : source;
             if (rawSource <= 1 && (bytes[5] == 0x50 || bytes[5] == 0x51))
@@ -117,7 +122,7 @@ inline std::vector<Packet> Route(const uint8_t * data, size_t size, uint32_t sou
                 // Without a separate destination, preserve the synth's native handling.
                 if (destination == MissingPort) { emit(source, bytes); return result; }
                 bytes[5] -= 0x10;
-                bytes[size - 2] = (bytes[size - 2] + 0x10) & 0x7F;
+                bytes[size - 2] = GSChecksum(bytes.data() + 5, size - 7);
                 emit(destination, bytes);
             }
             else if (source == 0 && ((bytes[5] == 0 && bytes[6] == 0 && bytes[7] == 0x7F) ||

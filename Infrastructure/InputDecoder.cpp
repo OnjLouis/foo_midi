@@ -361,13 +361,13 @@ void InputDecoder::decode_initialize(unsigned subSongIndex, unsigned flags, abor
             }
             else Event.Message = Item.Data & 0x00FFFFFFu;
             Bytes += sizeof(Event) + Event.SysEx.size();
-            if (Bytes > 64 * 1024 * 1024)
+            if (Bytes > ExternalMIDI::MaxSequenceBytes)
                 throw pfc::exception("This file exceeds the external MIDI sequence size limit.");
             Song->Events.push_back(std::move(Event));
         }
         try
         {
-            Song->RoutePorts();
+            Song->RoutePorts(Ports, CfgExternalMIDISplitGS.get());
             ExternalMIDI::Register(Song);
         }
         catch (const std::exception & Error) { throw pfc::exception(Error.what()); }

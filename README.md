@@ -17,7 +17,9 @@ configured decay time. It does not render audio into Foobar or use its audio
 volume/effects, internal MIDI loops or software-synth flavor/MU-map overrides.
 Conversion and ReplayGain require a software player. A missing or ambiguous
 output fails rather than falling back to another device. SysEx goes unmodified
-to its assigned port; it is not translated for different instruments. Seeking restarts held
+to its assigned port unless **Adapt Roland GS for separate synths** is enabled.
+That option copies recognized shared GS settings and redirects alternate-group
+GS writes when splitting a Sound Canvas file across two compatible synths. Seeking restarts held
 notes and can replay large state dumps; it is not sample-accurate audio seeking.
 
 This community fork adds multi-port routing for Yamaha and Roland MIDI files,

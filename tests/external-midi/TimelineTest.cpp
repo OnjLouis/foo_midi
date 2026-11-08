@@ -99,6 +99,42 @@ int main()
         Check(!Single.UsesSecondary() && Single.Events[0].Port == 0,
             "a single nonzero logical port keeps using the primary device");
 
+        const std::vector<uint8_t> Mode {0xF0,0x41,0x10,0x42,0x12,0,0,0x7F,0,1,0xF7};
+        const std::vector<uint8_t> ResetGS {0xF0,0x41,0x10,0x42,0x12,0x40,0,0x7F,0,0x41,0xF7};
+        const std::vector<uint8_t> Chorus {0xF0,0x41,0x10,0x42,0x12,0x40,1,0x38,3,4,0xF7};
+        const std::vector<uint8_t> Alternate {0xF0,0x41,0x10,0x42,0x12,0x50,0x1A,0x15,2,0x7F,0xF7};
+        const std::vector<uint8_t> Local {0xF0,0x41,0x10,0x42,0x12,0x40,0x1A,0x15,2,0x0F,0xF7};
+        auto Bad = Alternate;
+        Bad[9] = 0;
+        const std::vector<uint8_t> Unknown {0xF0,0x43,0x10,0x4C,0,0,0x7E,0,0xF7};
+        Sequence Roland { "roland.mid", 0, L"Primary", 4, {
+            {0,0,Mode,0}, {0.1,0,Chorus,0}, {0.2,0,Alternate,0},
+            {0.3,0,Local,0}, {0.4,0,Bad,0}, {0.5,0,Unknown,0},
+            {1,0x00643C90,{},0}, {1,0x00643C90,{},2}
+        }, L"Secondary" };
+        auto Raw = Roland;
+        Raw.RoutePorts();
+        Check(Raw.Events.size() == 8 && Raw.Events[0].SysEx == Mode &&
+            Raw.Events[2].SysEx == Alternate && Raw.Events.back().Port == 1, "raw preserves hardware bytes");
+        Roland.RoutePorts({0,7,1}, true);
+        Roland.Validate();
+        Check(Roland.Events.size() == 10, "only shared reset and chorus duplicate");
+        Check(Roland.Events[0].SysEx == ResetGS && Roland.Events[0].Port == 0 &&
+            Roland.Events[1].SysEx == ResetGS && Roland.Events[1].Port == 1,
+            "SC-88 mode set becomes a valid GS reset for both independent outputs");
+        Check(Roland.Events[2].SysEx == Chorus && Roland.Events[3].SysEx == Chorus &&
+            Roland.Events[3].Seconds == 0.1 && Roland.Events[3].Port == 1, "shared GS effect keeps its timestamp");
+        Check(Roland.Events[4].Port == 1 && Roland.Events[4].SysEx == Local,
+            "alternate group uses declared raw port and recalculated checksum");
+        Check(Roland.Events[5].Port == 0 && Roland.Events[5].SysEx == Local &&
+            Roland.Events[6].Port == 0 && Roland.Events[6].SysEx == Bad &&
+            Roland.Events[7].Port == 0 && Roland.Events[7].SysEx == Unknown,
+            "local writes, invalid checksums and non-GS messages do not leak across ports");
+        Sequence SoloGS { "solo.mid", 0, L"Primary", 1, {{0,0,Mode,1}}, L"Secondary" };
+        SoloGS.RoutePorts({0,1}, true);
+        Check(SoloGS.Events.size() == 1 && SoloGS.Events[0].Port == 0 && SoloGS.Events[0].SysEx == Mode,
+            "split mode does not rewrite single-port files");
+
         Clock Time;
         Check(!Time.IsFresh(0), "clock starts inactive");
         Time.Update(5, 10);

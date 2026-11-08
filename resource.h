@@ -9,12 +9,12 @@
 #define NUM_FILE_MAJOR              3
 #define NUM_FILE_MINOR              2
 #define NUM_FILE_PATCH              3
-#define NUM_FILE_PRERELEASE         6
+#define NUM_FILE_PRERELEASE         7
 
 #define NUM_PRODUCT_MAJOR           3
 #define NUM_PRODUCT_MINOR           2
 #define NUM_PRODUCT_PATCH           3
-#define NUM_PRODUCT_PRERELEASE      6
+#define NUM_PRODUCT_PRERELEASE      7
 
 /** Component specific **/
 
@@ -257,6 +257,7 @@
 #define IDD_EXTERNAL_MIDI                   2700
 #define IDC_EXTERNAL_MIDI_DEVICE            2701
 #define IDC_EXTERNAL_MIDI_SECONDARY         2702
+#define IDC_EXTERNAL_MIDI_SPLIT_GS          2703
 
 #define IDC_SECRETSAUCE_GAIN_LBL            2701
 #define IDC_SECRETSAUCE_GAIN                2702

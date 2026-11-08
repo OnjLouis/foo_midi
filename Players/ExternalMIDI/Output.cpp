@@ -58,6 +58,7 @@ namespace ExternalMIDI
     bool Output::Send(const Event & Item, const std::function<bool()> & Cancelled)
     {
         if (Cancelled()) return false;
+        _NeedsSilence = true;
         if (Item.SysEx.empty())
         {
             Check(midiOutShortMsg(_Handle, Item.Message & 0x00FFFFFFu));
@@ -128,6 +129,7 @@ namespace ExternalMIDI
     void Output::Silence()
     {
         if (!_Handle) return;
+        _NeedsSilence = true;
         Check(midiOutReset(_Handle));
         ReleaseMessage();
         for (unsigned Channel = 0; Channel < 16; ++Channel)
@@ -142,10 +144,11 @@ namespace ExternalMIDI
     {
         if (_Handle)
         {
-            if (_Verified) Silence();
+            if (_Verified && _NeedsSilence) Silence();
             Check(midiOutClose(_Handle));
             _Handle = nullptr;
             _Verified = false;
+            _NeedsSilence = false;
         }
         if (_Completed)
         {

@@ -42,6 +42,7 @@ namespace ExternalMIDI
         HMIDIOUT _Handle = nullptr;
         HANDLE _Completed = nullptr;
         bool _Verified = false;
+        bool _NeedsSilence = false;
         std::unique_ptr<LongMessage> _Pending;
         static std::atomic<bool> _DriverFailed;
     };

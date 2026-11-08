@@ -105,11 +105,14 @@ int main()
         }
         Check(Opens == 1 && Closes == 1, "normal handle released");
         Names.erase(Names.begin());
+        Messages.clear();
+        const auto ResetBeforeUnusedClose = Resets;
         {
             Output Port;
             Port.Open(L"Test output");
             Check(Opened == 0, "device renumbering resolved by name");
         }
+        Check(Messages.empty() && Resets == ResetBeforeUnusedClose, "unused verified output closes without sending MIDI");
         Names = { L"Other port" };
         bool Rejected = false;
         const auto Before = Opens;

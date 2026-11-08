@@ -16,8 +16,8 @@ namespace ExternalMIDI
         return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
     }
 
-    // Port is a real WinMM output in the component and a recording sink in tests.
-    // Only this worker owns it; the UI and decoder never call into a MIDI driver.
+    // Port is a WinMM output in the component and a recording sink in tests.
+    // Only this worker sends MIDI; it owns every output for the transport epoch.
     template<typename Port>
     class Worker
     {
@@ -73,7 +73,7 @@ namespace ExternalMIDI
         void Run() noexcept
         {
             uint64_t ActiveEpoch = ~uint64_t(0);
-            std::unique_ptr<Port> Output;
+            std::array<std::unique_ptr<Port>, OutputCount> Outputs;
             std::unique_ptr<Timeline> Events;
             std::shared_ptr<const Sequence> Song;
             bool Stale = false;
@@ -81,37 +81,57 @@ namespace ExternalMIDI
             {
                 auto State = Snapshot();
                 const auto Cancelled = [this, Epoch = State.Epoch] { return _Quit || _Epoch != Epoch; };
+                const auto Send = [&](const Event & Item) { return Outputs[Item.Port]->Send(Item, Cancelled); };
+                const auto Silence = [&]
+                {
+                    for (const auto & Output : Outputs)
+                        if (Output) Output->Silence();
+                };
                 try
                 {
                     if (State.Epoch != ActiveEpoch)
                     {
-                        if (Output) Output->Close();
-                        Output.reset();
+                        for (auto & Output : Outputs)
+                            if (Output) Output->Close();
+                        Outputs = {};
                         Events.reset();
                         Song = State.Song;
                         ActiveEpoch = State.Epoch;
                         Stale = false;
                         if (Song && !State.Paused)
                         {
-                            Output = std::make_unique<Port>();
-                            Output->Open(Song->Device);
-                            Output->Silence();
-                            Events = std::make_unique<Timeline>(*Song);
-                            Clock Initial;
-                            Initial.Update(State.Position, State.Updated);
-                            if (Initial.IsFresh(Now()))
-                                for (const auto & Item : Events->Seek(State.Position))
-                                    if (!Output->Send(Item, Cancelled)) break;
+                            const auto Open = [&](uint8_t Index, const std::wstring & Name)
+                            {
+                                Outputs[Index] = std::make_unique<Port>();
+                                try { Outputs[Index]->Open(Name); }
+                                catch (const std::exception & Error)
+                                {
+                                    throw std::runtime_error(std::string(Index == 0 ? "Primary output: " : "Secondary output: ") + Error.what());
+                                }
+                            };
+                            if (!Cancelled()) Open(0, Song->Device);
+                            if (!Cancelled() && Song->UsesSecondary()) Open(1, Song->SecondaryDevice);
+                            if (!Cancelled())
+                            {
+                                // Do not send even startup cleanup until every required device is open.
+                                Silence();
+                                Events = std::make_unique<Timeline>(*Song);
+                                Clock Initial;
+                                Initial.Update(State.Position, State.Updated);
+                                if (Initial.IsFresh(Now()))
+                                    for (const auto & Item : Events->Seek(State.Position))
+                                        if (!Send(Item)) break;
+                            }
                         }
                     }
-                    if (Output && Events && !Cancelled())
+                    if (Events && !Cancelled())
                     {
                         State = Snapshot();
                         Clock Time;
                         Time.Update(State.Position, State.Updated);
                         if (!Time.IsFresh(Now()))
                         {
-                            if (!Stale) Output->Silence();
+                            if (!Stale) Silence();
                             Stale = true;
                         }
                         else
@@ -119,31 +139,31 @@ namespace ExternalMIDI
                             if (Stale)
                             {
                                 for (const auto & Item : Events->Seek(State.Position))
-                                    if (!Output->Send(Item, Cancelled)) break;
+                                    if (!Send(Item)) break;
                                 Stale = false;
                             }
-                            Events->DispatchThrough(Time.Position(Now()), [&](const Event & Item) { return Output->Send(Item, Cancelled); });
+                            Events->DispatchThrough(Time.Position(Now()), Send);
                         }
                     }
                 }
                 catch (const std::exception & Error)
                 {
                     Events.reset();
-                    Output.reset();
+                    Outputs = {};
                     std::lock_guard<std::mutex> Lock(_Mutex);
                     _Error = Error.what();
-                    _ErrorEpoch = State.Epoch;
+                    _ErrorEpoch = ActiveEpoch;
                 }
                 catch (...)
                 {
                     Events.reset();
-                    Output.reset();
+                    Outputs = {};
                     std::lock_guard<std::mutex> Lock(_Mutex);
                     _Error = "Unexpected failure in external MIDI output.";
-                    _ErrorEpoch = State.Epoch;
+                    _ErrorEpoch = ActiveEpoch;
                 }
                 std::unique_lock<std::mutex> Lock(_Mutex);
-                if (!Output || State.Paused)
+                if (!Events || State.Paused)
                     _Changed.wait(Lock, [&] { return _Quit || _Epoch != ActiveEpoch; });
                 else
                     _Changed.wait_for(Lock, std::chrono::milliseconds(1));

@@ -60,6 +60,45 @@ int main()
         Timeline Reset(SustainSong);
         Check(Reset.Seek(1.5).size() == 2, "reset clears chased active notes");
 
+        Sequence Dual { "dual.mid", 0, L"Primary", 3, {
+            {0, 0x000005C0, {}, 8},
+            {0, 0x00643C90, {}, 8},
+            {0, 0x00000AC0, {}, 3},
+            {0, 0x007F40B0, {}, 3},
+            {0, 0x00503C90, {}, 3},
+            {1, 0x00003C80, {}, 3},
+            {1, 0, {0xF0, 0x7E, 0x7F, 9, 1, 0xF7}, 8}
+        }, L"Secondary" };
+        Dual.RoutePorts();
+        Dual.Validate();
+        Check(Dual.Events[0].Port == 1 && Dual.Events[2].Port == 0, "ports map by logical number, not event order");
+        Timeline DualPlayer(Dual);
+        State = DualPlayer.Seek(2);
+        Check(State.size() == 6 && State[3].Port == 1 && State[3].SysEx == Dual.Events.back().SysEx,
+            "seek preserves port and bytes for a reset");
+        Check(State[4].Port == 0 && State[4].Message == 0x00503C90 &&
+            State[5].Port == 0 && State[5].Message == 0x00003C80,
+            "reset on one output does not clear sustained note on the other");
+        auto Rejects = [](const Sequence & Candidate)
+        {
+            try { Candidate.Validate(); } catch (const std::runtime_error &) { return true; }
+            return false;
+        };
+        Dual.SecondaryDevice.clear();
+        Check(Rejects(Dual), "dual-port song requires a secondary device");
+        Dual.SecondaryDevice = Dual.Device;
+        Check(Rejects(Dual), "dual-port song must not merge channels into one device");
+        Dual.Events.push_back({2, 0x00643C90, {}, 2});
+        bool TooMany = false;
+        try { Dual.RoutePorts(); } catch (const std::runtime_error &) { TooMany = true; }
+        Check(TooMany, "a third used port is not folded into another device");
+        auto Single = Song;
+        for (auto & Item : Single.Events) Item.Port = 9;
+        Single.RoutePorts();
+        Single.Validate();
+        Check(!Single.UsesSecondary() && Single.Events[0].Port == 0,
+            "a single nonzero logical port keeps using the primary device");
+
         Clock Time;
         Check(!Time.IsFresh(0), "clock starts inactive");
         Time.Update(5, 10);

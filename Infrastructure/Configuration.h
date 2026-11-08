@@ -150,6 +150,7 @@ const uint16_t DefaultEnabledChannels = 0xFFFF;
 
 extern cfg_var_modern::cfg_int      CfgPlayerType;
 extern cfg_var_modern::cfg_string   CfgExternalMIDIDevice;
+extern cfg_var_modern::cfg_string   CfgExternalMIDISecondaryDevice;
 extern cfg_var_modern::cfg_string   CfgPlugInFilePath;
 extern cfg_var_modern::cfg_int      CfgCLAPIndex;
 

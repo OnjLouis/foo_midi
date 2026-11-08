@@ -7,8 +7,11 @@ using namespace ExternalMIDI;
 static std::mutex Mutex;
 static std::condition_variable Changed;
 static std::vector<Event> Messages;
+static std::vector<std::wstring> Destinations;
+static std::vector<std::wstring> Closed;
 static unsigned Opens = 0, Closes = 0, Silences = 0;
 static bool FailOpen = false, BlockDump = false, InDump = false;
+static bool FailSecondary = false;
 
 static void Check(bool Value, const char * Name)
 {
@@ -25,10 +28,12 @@ class RecordingPort
 {
 public:
     ~RecordingPort() { Close(); }
-    void Open(const std::wstring &)
+    void Open(const std::wstring & Name)
     {
         std::lock_guard<std::mutex> Lock(Mutex);
-        if (FailOpen) throw std::runtime_error("Mock port unavailable");
+        if (FailOpen || (FailSecondary && Name == L"Secondary"))
+            throw std::runtime_error("Mock port unavailable");
+        _Name = Name;
         _Open = true;
         ++Opens;
         Changed.notify_all();
@@ -39,6 +44,7 @@ public:
         if (!_Open) return;
         _Open = false;
         ++Closes;
+        Closed.push_back(_Name);
         Changed.notify_all();
     }
     void Silence()
@@ -68,12 +74,14 @@ public:
         if (Cancelled()) return false;
         std::lock_guard<std::mutex> Lock(Mutex);
         Messages.push_back(Item);
+        Destinations.push_back(_Name);
         Changed.notify_all();
         return true;
     }
 
 private:
     bool _Open = false;
+    std::wstring _Name;
 };
 
 int main()
@@ -82,7 +90,7 @@ int main()
     {
         const auto Song = std::make_shared<Sequence>(Sequence{"test.mid", 0, L"Test port", 10, {
             {0, 0x000005C0, {}}, {0, 0x00643C90, {}}, {5, 0x00003C80, {}}
-        }});
+        }, L"Secondary"});
         Worker<RecordingPort> Player;
         Worker<RecordingPort>::Request State{Song, 1, Now() - 1, false, 1};
         Player.Update(State);
@@ -113,7 +121,7 @@ int main()
         std::this_thread::sleep_for(std::chrono::milliseconds(30));
         {
             std::lock_guard<std::mutex> Lock(Mutex);
-            Check(Messages.size() == Count && Opens == 1, "paused timer updates do not reopen or send");
+            Check(Messages.size() == Count && Opens == 1, "single-port playback ignores configured secondary and does not reopen while paused");
         }
         State.Paused = false;
         ++State.Epoch;
@@ -176,8 +184,79 @@ int main()
             if (!Error.second.empty()) break;
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         } while (Now() < Deadline);
-        Check(Error.first == 42 && Error.second == "Mock port unavailable", "error belongs to exact transport generation");
+        Check(Error.first == 42 && Error.second == "Primary output: Mock port unavailable", "error belongs to exact transport generation");
         ErrorPlayer.Stop();
+
+        auto DualSong = std::make_shared<Sequence>(Sequence{"dual.mid", 0, L"Primary", 8, {
+            {0, 0x000005C0, {}, 0},
+            {0, 0, {0xF0, 0x7E, 0x7F, 9, 1, 0xF7}, 1},
+            {0, 0x00000CC0, {}, 1},
+            {0, 0x00643C90, {}, 0},
+            {0, 0x00443C90, {}, 1},
+            {4, 0x00003C80, {}, 0},
+            {5, 0x00003C80, {}, 1}
+        }, L"Secondary"});
+        DualSong->Validate();
+        Worker<RecordingPort> DualPlayer;
+        unsigned Before;
+        {
+            std::lock_guard<std::mutex> Lock(Mutex);
+            FailOpen = false;
+            Before = Closes;
+            Count = Messages.size();
+        }
+        Worker<RecordingPort>::Request Dual{DualSong, 0, Now(), false, 1};
+        DualPlayer.Update(Dual);
+        Wait([&] { return Messages.size() >= Count + 5; });
+        {
+            std::lock_guard<std::mutex> Lock(Mutex);
+            Check(Destinations[Count] == L"Primary" && Destinations[Count + 1] == L"Secondary" &&
+                Messages[Count + 1].SysEx == DualSong->Events[1].SysEx &&
+                Destinations[Count + 3] == L"Primary" && Destinations[Count + 4] == L"Secondary",
+                "both outputs receive their own note and unmodified SysEx events in order");
+        }
+        Dual.Paused = true;
+        ++Dual.Epoch;
+        DualPlayer.Update(Dual);
+        Wait([&] { return Closes >= Before + 2; });
+        {
+            std::lock_guard<std::mutex> Lock(Mutex);
+            Check(Closed[Before] == L"Primary" && Closed[Before + 1] == L"Secondary", "pause closes both outputs");
+            Count = Messages.size();
+        }
+        Dual.Paused = false;
+        Dual.Position = 4.5;
+        Dual.Updated = Now();
+        ++Dual.Epoch;
+        DualPlayer.Update(Dual);
+        Wait([&] { return Messages.size() >= Count + 4; });
+        {
+            std::lock_guard<std::mutex> Lock(Mutex);
+            Check(Messages.size() == Count + 4 && Messages.back().Message == 0x00443C90 &&
+                Destinations.back() == L"Secondary", "seek restores only the output whose note is still held");
+        }
+        DualPlayer.Stop();
+
+        Worker<RecordingPort> MissingSecondary;
+        unsigned SilenceBefore;
+        {
+            std::lock_guard<std::mutex> Lock(Mutex);
+            FailSecondary = true;
+            Count = Messages.size();
+            Before = Closes;
+            SilenceBefore = Silences;
+        }
+        Dual.Position = 0;
+        Dual.Updated = Now();
+        ++Dual.Epoch;
+        MissingSecondary.Update(Dual);
+        Wait([&] { return Closes > Before; });
+        MissingSecondary.Stop();
+        Error = MissingSecondary.TakeError();
+        Check(Error.first == Dual.Epoch && Error.second == "Secondary output: Mock port unavailable",
+            "second-device failure identifies which output failed");
+        Check(Opens == Closes && Messages.size() == Count && Silences == SilenceBefore,
+            "missing secondary aborts without sending on primary or leaking a handle");
         std::cout << "External MIDI worker lifecycle regressions passed (recording sink only)\n";
         return 0;
     }

@@ -334,6 +334,7 @@ void InputDecoder::decode_initialize(unsigned subSongIndex, unsigned flags, abor
         Song->Path = _ExternalPath;
         Song->Subsong = subSongIndex;
         Song->Device = pfc::stringcvt::string_wide_from_utf8(CfgExternalMIDIDevice.get()).get_ptr();
+        Song->SecondaryDevice = pfc::stringcvt::string_wide_from_utf8(CfgExternalMIDISecondaryDevice.get()).get_ptr();
         Song->Duration = static_cast<double>(_Container.GetDuration(subSongIndex, true)) / 1000.0 +
             std::clamp(static_cast<int>(CfgDecayTime.get()), 0, 60000) / 1000.0;
         std::vector<midi::message_t> Stream;
@@ -341,34 +342,34 @@ void InputDecoder::decode_initialize(unsigned subSongIndex, unsigned flags, abor
         std::vector<uint8_t> Ports;
         uint32_t LoopBegin, LoopEnd;
         _Container.SerializeAsStream(subSongIndex, Stream, SysEx, Ports, LoopBegin, LoopEnd, 0);
-        int UsedPort = -1;
         size_t Bytes = 0;
         for (const auto & Item : Stream)
         {
             abortHandler.check();
             ExternalMIDI::Event Event;
             Event.Seconds = static_cast<double>(Item.Time) / 1000.0;
-            uint8_t Port = static_cast<uint8_t>((Item.Data >> 24) & 0x7F);
+            Event.Port = static_cast<uint8_t>((Item.Data >> 24) & 0x7F);
             if (Item.IsSysEx())
             {
                 const uint8_t * Data;
                 size_t Size;
-                if (!SysEx.GetItem(Item.Data & 0x7FFFFFFFu, Data, Size, Port))
+                if (!SysEx.GetItem(Item.Data & 0x7FFFFFFFu, Data, Size, Event.Port))
                     throw pfc::exception("Invalid MIDI SysEx reference.");
                 if (Size < 2 || Size > 16 * 1024 * 1024)
                     throw pfc::exception("Invalid or oversized external MIDI SysEx message.");
                 Event.SysEx.assign(Data, Data + Size);
             }
             else Event.Message = Item.Data & 0x00FFFFFFu;
-            if (UsedPort >= 0 && UsedPort != Port)
-                throw pfc::exception("This file uses multiple MIDI ports. External MIDI output currently supports one port; no messages were sent.");
-            UsedPort = Port;
             Bytes += sizeof(Event) + Event.SysEx.size();
             if (Bytes > 64 * 1024 * 1024)
                 throw pfc::exception("This file exceeds the external MIDI sequence size limit.");
             Song->Events.push_back(std::move(Event));
         }
-        try { ExternalMIDI::Register(Song); }
+        try
+        {
+            Song->RoutePorts();
+            ExternalMIDI::Register(Song);
+        }
         catch (const std::exception & Error) { throw pfc::exception(Error.what()); }
         _ExternalSequence = std::move(Song);
         _PlayerType = PlayerType::MCI;

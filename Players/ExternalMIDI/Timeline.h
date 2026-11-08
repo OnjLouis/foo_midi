@@ -10,11 +10,14 @@
 
 namespace ExternalMIDI
 {
+    constexpr uint8_t OutputCount = 2;
+
     struct Event
     {
         double Seconds = 0;
         uint32_t Message = 0;
         std::vector<uint8_t> SysEx;
+        uint8_t Port = 0;
 
         bool IsNote() const noexcept
         {
@@ -30,16 +33,45 @@ namespace ExternalMIDI
         std::wstring Device;
         double Duration = 0;
         std::vector<Event> Events;
+        std::wstring SecondaryDevice;
+
+        // The parser supplies logical port indices. Compress only the used
+        // indices, so a single-port subsong always uses the primary device.
+        void RoutePorts()
+        {
+            constexpr int Unused = -1;
+            int First = Unused, Second = Unused;
+            for (const auto & Item : Events)
+            {
+                if (Item.Port == First || Item.Port == Second) continue;
+                if (First == Unused) First = Item.Port;
+                else if (Second == Unused) Second = Item.Port;
+                else throw std::runtime_error("This file uses more than two MIDI ports. No messages were sent.");
+            }
+            if (Second != Unused && Second < First) std::swap(First, Second);
+            for (auto & Item : Events) Item.Port = Item.Port == Second ? 1 : 0;
+        }
+
+        bool UsesSecondary() const noexcept
+        {
+            return std::any_of(Events.begin(), Events.end(), [](const Event & Item) { return Item.Port == 1; });
+        }
 
         void Validate() const
         {
             if (Device.empty())
-                throw std::runtime_error("Select a MIDI output with Configure first.");
+                throw std::runtime_error("Select a primary MIDI output with Configure first.");
+            if (UsesSecondary() && SecondaryDevice.empty())
+                throw std::runtime_error("This file uses two MIDI ports. Select a secondary MIDI output with Configure. No messages were sent.");
+            if (UsesSecondary() && SecondaryDevice == Device)
+                throw std::runtime_error("Primary and secondary MIDI outputs must be different.");
             if (!std::isfinite(Duration) || Duration < 0)
                 throw std::runtime_error("Invalid external MIDI duration.");
             double Previous = 0;
             for (const auto & Item : Events)
             {
+                if (Item.Port >= OutputCount)
+                    throw std::runtime_error("Invalid external MIDI output index.");
                 if (!std::isfinite(Item.Seconds) || Item.Seconds < Previous || Item.Seconds > Duration)
                     throw std::runtime_error("Invalid external MIDI event time.");
                 Previous = Item.Seconds;
@@ -63,12 +95,20 @@ namespace ExternalMIDI
 
             _Next = 0;
             std::vector<Event> State;
-            std::array<std::array<uint8_t, 128>, 16> Held{};
-            std::array<std::array<uint8_t, 128>, 16> Sustained{};
-            std::array<bool, 16> Sustain{};
+            struct PortState
+            {
+                std::array<std::array<uint8_t, 128>, 16> Held{};
+                std::array<std::array<uint8_t, 128>, 16> Sustained{};
+                std::array<bool, 16> Sustain{};
+            };
+            std::array<PortState, OutputCount> Ports{};
             while (_Next < _Song.Events.size() && _Song.Events[_Next].Seconds < Seconds)
             {
                 const auto & Item = _Song.Events[_Next++];
+                auto & Port = Ports[Item.Port];
+                auto & Held = Port.Held;
+                auto & Sustained = Port.Sustained;
+                auto & Sustain = Port.Sustain;
                 const auto Type = Item.Message & 0xF0;
                 const auto Channel = Item.Message & 0x0F;
                 const auto Key = (Item.Message >> 8) & 0x7F;
@@ -83,9 +123,7 @@ namespace ExternalMIDI
                     {
                         if (IsReset(Item.SysEx))
                         {
-                            Held = {};
-                            Sustained = {};
-                            Sustain = {};
+                            Port = {};
                         }
                     }
                     else if (Type == 0xB0)
@@ -120,17 +158,18 @@ namespace ExternalMIDI
                 }
             }
 
-            for (unsigned Channel = 0; Channel < 16; ++Channel)
-                for (unsigned Key = 0; Key < 128; ++Key)
-                {
-                    if (const auto Velocity = Held[Channel][Key])
-                        State.push_back({ Seconds, 0x90u | Channel | (Key << 8) | (Velocity << 16), {} });
-                    else if (const auto Velocity = Sustained[Channel][Key])
+            for (uint8_t Port = 0; Port < OutputCount; ++Port)
+                for (unsigned Channel = 0; Channel < 16; ++Channel)
+                    for (unsigned Key = 0; Key < 128; ++Key)
                     {
-                        State.push_back({ Seconds, 0x90u | Channel | (Key << 8) | (Velocity << 16), {} });
-                        State.push_back({ Seconds, 0x80u | Channel | (Key << 8), {} });
+                        if (const auto Velocity = Ports[Port].Held[Channel][Key])
+                            State.push_back({ Seconds, 0x90u | Channel | (Key << 8) | (Velocity << 16), {}, Port });
+                        else if (const auto Velocity = Ports[Port].Sustained[Channel][Key])
+                        {
+                            State.push_back({ Seconds, 0x90u | Channel | (Key << 8) | (Velocity << 16), {}, Port });
+                            State.push_back({ Seconds, 0x80u | Channel | (Key << 8), {}, Port });
+                        }
                     }
-                }
             return State;
         }
 

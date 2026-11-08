@@ -186,8 +186,8 @@ namespace ExternalMIDI
     {
     public:
         enum { IDD = IDD_EXTERNAL_MIDI };
-        explicit DeviceDialog(std::wstring Name) : Selected(std::move(Name)) { }
-        std::wstring Selected;
+        DeviceDialog(const std::wstring & Primary, const std::wstring & Secondary) : Selected{Primary, Secondary} { }
+        std::array<std::wstring, OutputCount> Selected;
         BEGIN_MSG_MAP(DeviceDialog)
             MESSAGE_HANDLER(WM_INITDIALOG, Init)
             COMMAND_ID_HANDLER(IDOK, Accept)
@@ -197,40 +197,60 @@ namespace ExternalMIDI
     private:
         LRESULT Init(UINT, WPARAM, LPARAM, BOOL &)
         {
-            _Devices = EnumerateDevices();
-            auto Combo = GetDlgItem(IDC_EXTERNAL_MIDI_DEVICE);
-            int Selection = -1;
-            for (const auto & Item : _Devices)
-            {
-                const auto Index = Combo.SendMessage(CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(Item.Name.c_str()));
-                if (Item.Name == Selected) Selection = static_cast<int>(Index);
-            }
-            if (Selection >= 0) Combo.SendMessage(CB_SETCURSEL, Selection);
-            ::SetDlgItemTextW(m_hWnd, IDC_EXTERNAL_MIDI_CURRENT, Selected.empty() ? L"No output selected." : Selected.c_str());
+            const auto Devices = EnumerateDevices();
+            Populate(IDC_EXTERNAL_MIDI_DEVICE, 0, Devices);
+            Populate(IDC_EXTERNAL_MIDI_SECONDARY, 1, Devices);
             CenterWindow(GetParent());
             return TRUE;
         }
+
+        void Populate(int Control, size_t Port, const std::vector<Device> & Devices)
+        {
+            auto Combo = GetDlgItem(Control);
+            auto & Choices = _Choices[Port];
+            LRESULT Selection = CB_ERR;
+            const auto Add = [&](const std::wstring & Name, const std::wstring & Label)
+            {
+                const auto Index = Combo.SendMessage(CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(Label.c_str()));
+                if (Index < 0) return;
+                Choices.push_back(Name);
+                if (Name == Selected[Port]) Selection = Index;
+            };
+            if (Port == 1) Add(L"", L"None");
+            for (const auto & Item : Devices) Add(Item.Name, Item.Name);
+            if (Selection == CB_ERR && !Selected[Port].empty())
+                Add(Selected[Port], Selected[Port] + L" (unavailable)");
+            if (Selection != CB_ERR) Combo.SendMessage(CB_SETCURSEL, Selection);
+        }
+
         LRESULT Accept(WORD, WORD, HWND, BOOL &)
         {
-            const auto Index = static_cast<size_t>(GetDlgItem(IDC_EXTERNAL_MIDI_DEVICE).SendMessage(CB_GETCURSEL));
-            if (Index >= _Devices.size())
+            const auto Primary = static_cast<size_t>(GetDlgItem(IDC_EXTERNAL_MIDI_DEVICE).SendMessage(CB_GETCURSEL));
+            const auto Secondary = static_cast<size_t>(GetDlgItem(IDC_EXTERNAL_MIDI_SECONDARY).SendMessage(CB_GETCURSEL));
+            if (Primary >= _Choices[0].size() || Secondary >= _Choices[1].size())
             {
-                ::MessageBoxW(m_hWnd, L"Select an available MIDI output. If your device is missing, reconnect it and reopen this dialog.", L"MIDI output", MB_OK | MB_ICONINFORMATION);
+                ::MessageBoxW(m_hWnd, L"Select a primary MIDI output and a secondary output or None.", L"MIDI output", MB_OK | MB_ICONINFORMATION);
                 return 0;
             }
-            Selected = _Devices[Index].Name;
+            if (_Choices[0][Primary] == _Choices[1][Secondary])
+            {
+                ::MessageBoxW(m_hWnd, L"Primary and secondary MIDI outputs must be different.", L"MIDI output", MB_OK | MB_ICONINFORMATION);
+                return 0;
+            }
+            Selected = {_Choices[0][Primary], _Choices[1][Secondary]};
             EndDialog(IDOK);
             return 0;
         }
         LRESULT Cancel(WORD, WORD, HWND, BOOL &) { EndDialog(IDCANCEL); return 0; }
-        std::vector<Device> _Devices;
+        std::array<std::vector<std::wstring>, OutputCount> _Choices;
     };
 
-    bool Configure(HWND Parent, std::wstring & Device)
+    bool Configure(HWND Parent, std::wstring & Primary, std::wstring & Secondary)
     {
-        DeviceDialog Dialog(Device);
+        DeviceDialog Dialog(Primary, Secondary);
         if (Dialog.DoModal(Parent) != IDOK) return false;
-        Device = std::move(Dialog.Selected);
+        Primary = std::move(Dialog.Selected[0]);
+        Secondary = std::move(Dialog.Selected[1]);
         return true;
     }
 }

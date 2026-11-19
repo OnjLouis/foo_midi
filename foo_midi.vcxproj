@@ -454,6 +454,7 @@ pwsh.exe -NoLogo -NonInteractive -NoProfile -File Build-FB2KComponent.ps1 $(Targ
     <ClInclude Include="Infrastructure\ContextMenu.h" />
     <ClInclude Include="Infrastructure\CLAPEvents.h" />
     <ClInclude Include="Infrastructure\CLAPMidiInputs.h" />
+    <ClInclude Include="Infrastructure\MIDIChannelMute.h" />
     <ClInclude Include="Infrastructure\CLAPPlugIn.h" />
     <ClInclude Include="Players\CLAPPlayer.h" />
     <ClInclude Include="Players\EdMPlayer.h" />

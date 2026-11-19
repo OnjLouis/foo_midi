@@ -1,4 +1,5 @@
 #include "CLAPMidiInputs.h"
+#include "MIDIChannelMute.h"
 #include <array>
 #include <cstdlib>
 #include <iostream>
@@ -83,6 +84,19 @@ int main()
     Require(CLAP::MidiInputIndex(0, {3}, 1) == 0, "First logical port should play through one-input synths");
     Require(!CLAP::MidiInputIndex(1, {0, 3}, 3), "Absent input must not be folded into another port");
     Require(!CLAP::MidiInputIndex(3, {0, 3}, 4), "Undeclared port was routed");
+
+    const std::vector<uint8_t> sparsePorts{0, 3};
+    uint16_t enabled[128];
+    for (auto & mask : enabled) mask = UINT16_MAX;
+    enabled[1] &= ~(1u << 2);
+    std::vector<uint16_t> muted;
+    MIDIChannelMute::SendAllNotesOff(sparsePorts.size(), enabled, [&](uint32_t event)
+    {
+        const auto input = CLAP::MidiInputIndex(event >> 24, sparsePorts, 4);
+        Require(input && (event & 0xFFFFu) == 0x7BB2u, "Unexpected channel mode message");
+        muted.push_back(*input);
+    });
+    Require(muted == std::vector<uint16_t>{3}, "Muting the second logical stream must silence physical input D");
 
     Require(events.size(&events) == 8, "Events dropped or duplicated");
     for (uint32_t i = 0; i < 4; ++i)

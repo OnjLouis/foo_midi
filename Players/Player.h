@@ -7,6 +7,7 @@
 
 #include <MIDIContainer.h>
 #include <SysEx.h>
+#include <optional>
 
 #include "Configuration.h"
 
@@ -84,7 +85,7 @@ private:
     void SendEventFiltered(uint32_t data);
     void SendEventFiltered(uint32_t data, uint32_t time);
 
-    bool FilterEvent(uint32_t data) noexcept;
+    bool FilterEvent(uint32_t data, std::optional<uint32_t> time = {}) noexcept;
     bool FilterEffect(uint32_t data) const noexcept;
 
     void SendSysExFiltered(const uint8_t * event, size_t size, uint8_t portNumber);

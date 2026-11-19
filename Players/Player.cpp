@@ -6,6 +6,7 @@
 #include "Player.h"
 #include "Channels.h"
 #include "Encoding.h"
+#include "MIDIChannelMute.h"
 
 #include <fstream>
 
@@ -590,7 +591,7 @@ void player_t::SendEventFiltered(uint32_t data, uint32_t time)
 {
     if (!(data & 0x80000000u))
     {
-        if (FilterEvent(data))
+        if (FilterEvent(data, time))
             return;
 
         if (FilterEffect(data))
@@ -614,25 +615,21 @@ void player_t::SendEventFiltered(uint32_t data, uint32_t time)
 /// <summary>
 /// Returns true if the event needs to be filtered out.
 /// </summary>
-bool player_t::FilterEvent(uint32_t data) noexcept
+bool player_t::FilterEvent(uint32_t data, std::optional<uint32_t> time) noexcept
 {
     // Send an All Notes Off channel mode message for all disabled channels whenever the selection changes.
     if (CfgChannels.HasChanged(_ChannelsMaskVersion))
     {
         CfgChannels.Get(_ChannelsMask, sizeof(_ChannelsMask), _ChannelsMaskVersion);
 
-        for (const auto & PortNumber : _PortNumbers)
+        // Backends expect compact stream indices, not the original file port numbers.
+        MIDIChannelMute::SendAllNotesOff(_PortNumbers.size(), _ChannelsMask, [this, time](uint32_t event)
         {
-            uint16_t Mask = 1;
-
-            for (uint8_t Channel = 0; Channel < 16; ++Channel, Mask <<= 1)
-            {
-                if (_ChannelsMask[PortNumber] & Mask)
-                    continue; // because the channel is enabled.
-
-                SendEvent((uint32_t) ((PortNumber << 24) | (midi::Controller::AllNotesOff << 8) | midi::ControlChange | Channel));
-            }
-        }
+            if (time)
+                SendEvent(event, *time);
+            else
+                SendEvent(event);
+        });
     }
 
     const size_t PortNumber = (data >> 24) & 0x7F;

@@ -287,6 +287,12 @@ uint32_t player_t::Play(audio_sample * frameData, uint32_t frameCount) noexcept
         if (FrameIndex < frameCount)
         {
             Remainder = ((_MessageIndex < _Messages.size()) ? _Messages[_MessageIndex].Time : _FrameCount) - _FrameIndex;
+            const bool WillLoop = _LoopType == LoopType::RepeatAndFade || _LoopType == LoopType::RepeatForever ||
+                ((_LoopType == LoopType::LoopWhenDetectedAndFade || _LoopType == LoopType::LoopWhenDetectedForever) &&
+                    _MessageIndexLoopBegin != ~0u);
+            const bool IsFinalFragment = Remainder < BlockSize &&
+                Remainder == _FrameCount - _FrameIndex && Remainder <= frameCount - FrameIndex &&
+                !WillLoop && AllowsPartialFinalBlock();
 
             if (BlockSize != 0)
                 BlockToDo = Remainder;
@@ -299,7 +305,7 @@ uint32_t player_t::Play(audio_sample * frameData, uint32_t frameCount) noexcept
                     Remainder = BlockSize;
             }
 
-            if (Remainder >= BlockSize)
+            if (Remainder >= BlockSize || (IsFinalFragment && Remainder != 0))
             {
                 {
                     Render(frameData + (FrameIndex * 2), Remainder);
@@ -319,6 +325,14 @@ uint32_t player_t::Play(audio_sample * frameData, uint32_t frameCount) noexcept
         // Have we reached the end of the song?
         if (NewFrameIndex >= _FrameCount)
         {
+            // Finish whole audio blocks before queuing events at the song boundary.
+            if (BlockSize != 0 && BlockToDo >= BlockSize)
+            {
+                if (frameCount - FrameIndex < BlockSize)
+                    break;
+                continue;
+            }
+
             // Process any remaining messages.
             for (; _MessageIndex < _Messages.size(); ++_MessageIndex)
             {

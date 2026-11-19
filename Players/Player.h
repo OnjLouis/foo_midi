@@ -53,6 +53,7 @@ protected:
 
     // Should return the block size (in no. of frames) that the player expects, otherwise 0.
     virtual uint32_t GetBlockSize() const noexcept { return 0; }
+    virtual bool AllowsPartialFinalBlock() const noexcept { return false; }
 
     virtual uint8_t GetPortCount() const noexcept = 0;
 

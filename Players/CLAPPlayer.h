@@ -25,6 +25,7 @@ public:
     virtual ~CLAPPlayer();
 
     virtual uint32_t GetBlockSize() const noexcept override { return CLAP::BlockSize; } // 2 channels
+    virtual bool AllowsPartialFinalBlock() const noexcept override { return true; }
 
 private:
     #pragma region player_t

@@ -11,6 +11,7 @@
 #include "CLAPHost.h"
 #include "CLAPWindow.h"
 #include "CLAPPlayer.h"
+#include "CLAPMidiInputs.h"
 
 #include "CriticalSection.h"
 
@@ -241,6 +242,9 @@ std::shared_ptr<PlugIn> Host::CreatePlugIn()
     critical_section_lock_t Lock(_CriticalSection);
 
     auto * Instance = _CurrentDSO->_Factory->create_plugin(_CurrentDSO->_Factory, this, _CurrentDSO->_Descriptor->id);
+    if (Instance == nullptr)
+        return {};
+
 
     ++_CurrentDSO->_InstanceCount;
 
@@ -414,57 +418,11 @@ void Host::GetPlugInEntries(const fs::path & filePath, const std::function<void(
 /// </summary>
 bool Host::VerifyNotePorts(const clap_plugin_t * plugIn) noexcept
 {
-    if (plugIn->get_extension == nullptr)
+    if (MidiInputPortCount(plugIn) != 0)
         return true;
 
-    const auto NotePorts = (const clap_plugin_note_ports_t *) plugIn->get_extension(plugIn, CLAP_EXT_NOTE_PORTS);
-
-    if (NotePorts == nullptr)
-    {
-        Log.AtError().Write(STR_COMPONENT_BASENAME " does not support CLAP plug-ins without the Note Ports extension.");
-
-        return false;
-    }
-
-    const bool InputPort = true;
-    const auto InputPortCount = NotePorts->count(plugIn, InputPort);
-
-    if (InputPortCount != 1)
-    {
-        Log.AtError().Write(STR_COMPONENT_BASENAME " does not support CLAP plug-ins with more than 1 MIDI input port.");
-
-        return false;
-    }
-/*
-    const bool OutputPort = false;
-    const auto OutputPortCount = NotePorts->count(plugIn, OutputPort);
-
-    if (OutputPortCount != 0)
-    {
-        Log.AtError().Write(STR_COMPONENT_BASENAME " does not support CLAP plug-ins with MIDI output ports.");
-
-        return false;
-    }
-*/
-    clap_note_port_info PortInfo = {};
-
-    const uint32_t PortIndex = 0;
-
-    if (!NotePorts->get(plugIn, PortIndex, InputPort, &PortInfo))
-    {
-        Log.AtError().Write(STR_COMPONENT_BASENAME " failed to get input port information.");
-
-        return false;
-    }
-
-    if ((PortInfo.supported_dialects & CLAP_NOTE_DIALECT_MIDI) == 0)
-    {
-        Log.AtError().Write(STR_COMPONENT_BASENAME " does not support CLAP plug-ins with note ports without MIDI dialect support.");
-
-        return false;
-    }
-
-    return true;
+    Log.AtError().Write(STR_COMPONENT_BASENAME " requires 1 to %u valid MIDI 1.0 input ports for CLAP playback.", static_cast<unsigned>(MaxMidiInputs));
+    return false;
 }
 
 /// <summary>
@@ -477,7 +435,7 @@ bool Host::VerifyAudioPorts(const clap_plugin_t * plugIn) noexcept
 
     const auto AudioPorts = (const clap_plugin_audio_ports_t *) plugIn->get_extension(plugIn, CLAP_EXT_AUDIO_PORTS);
 
-    if (AudioPorts == nullptr)
+    if (AudioPorts == nullptr || !AudioPorts->get)
     {
         Log.AtError().Write(STR_COMPONENT_BASENAME " does not support CLAP plug-ins without the Audio Ports extension.");
 
@@ -516,7 +474,8 @@ bool Host::VerifyAudioPorts(const clap_plugin_t * plugIn) noexcept
         return false;
     }
 
-    if (!(OutPortInfo.channel_count == 2 && ::strcmp(OutPortInfo.port_type, CLAP_PORT_STEREO) == 0))
+    if (!(OutPortInfo.channel_count == 2 && (OutPortInfo.port_type == nullptr ||
+                                           ::strcmp(OutPortInfo.port_type, CLAP_PORT_STEREO) == 0)))
     {
         Log.AtError().Write(STR_COMPONENT_BASENAME " does not support CLAP plug-ins with more than 2 output channels in stereo.");
 
@@ -732,7 +691,7 @@ const clap_host_note_ports_t Host::GetNotePortsExtension =
     // Queries which dialects the host supports.
     .supported_dialects = [](const clap_host_t * self) -> uint32_t
     {
-        return CLAP_NOTE_DIALECT_CLAP | CLAP_NOTE_DIALECT_MIDI | CLAP_NOTE_DIALECT_MIDI_MPE | CLAP_NOTE_DIALECT_MIDI2;
+        return CLAP_NOTE_DIALECT_MIDI;
     },
 
     // Rescans the full list of note ports according to the flags.

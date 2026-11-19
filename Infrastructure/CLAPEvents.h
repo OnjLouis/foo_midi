@@ -13,24 +13,10 @@
 
 #include "Resource.h"
 #include "Encoding.h"
+#include "CLAPMidiInputs.h"
 
 namespace CLAP
 {
-
-/// <summary>
-/// Implements an input event list for the CLAP plug-in.
-/// </summary>
-struct InputEvents : clap_input_events
-{
-public:
-    InputEvents();
-
-    void Add(uint8_t status, uint8_t data1, uint8_t data2, uint16_t portNumber, uint32_t time);
-    void Add(const uint8_t * data, uint32_t size_, uint16_t portNumber, uint32_t time);
-
-public:
-    std::vector<std::unique_ptr<clap_event_header>> Events;
-};
 
 /// <summary>
 /// Implements an output event list for the CLAP plug-in.

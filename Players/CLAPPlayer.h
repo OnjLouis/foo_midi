@@ -34,7 +34,7 @@ private:
     virtual void Render(audio_sample *, uint32_t) override;
     virtual bool Reset() override;
 
-    virtual uint8_t GetPortCount() const noexcept override { return _countof(_AudioOuts); };
+    virtual uint8_t GetPortCount() const noexcept override { return _PlugIn ? _PlugIn->GetMidiInputCount() : 0; }
 
     virtual void SendEvent(uint32_t data) override { SendEvent(data, 0); }
     virtual void SendSysEx(const uint8_t * data, size_t size, uint32_t portNumber) override { SendSysEx(data, size, portNumber, 0); }
@@ -47,15 +47,14 @@ private:
 private:
     std::shared_ptr<CLAP::PlugIn> _PlugIn;
 
-    fs::path _FilePath;
-    uint32_t _Index;
-
     CLAP::InputEvents _InEvents;
     CLAP::OutputEvents _OutEvents;
 
-    void * _OutChannels[2];
+    float _Samples32[2][CLAP::BlockSize];
+    double _Samples64[2][CLAP::BlockSize];
+    float * _Outputs32[2];
+    double * _Outputs64[2];
     clap_audio_buffer_t _AudioOut;
-    clap_audio_buffer_t _AudioOuts[1];
 };
 
 #pragma warning(default: 4820) // x bytes padding added after data member

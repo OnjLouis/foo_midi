@@ -51,7 +51,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           foreach ($architecture in @('Win32', 'x64')) {
-            foreach ($target in @(@('parser', 'foo_midi/3rdParty/libmidi/tests'), @('host', 'foo_midi/vsthost/tests'), @('external', 'foo_midi/tests/external-midi'))) {
+            foreach ($target in @(@('parser', 'foo_midi/3rdParty/libmidi/tests'), @('host', 'foo_midi/vsthost/tests'), @('external', 'foo_midi/tests/external-midi'), @('clap', 'foo_midi/tests/clap-midi'))) {
               $build = Join-Path $env:RUNNER_TEMP "$($target[0])-$architecture"
               cmake -S $target[1] -B $build -A $architecture
               if ($LASTEXITCODE) { throw 'Test configure failed' }

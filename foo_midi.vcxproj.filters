@@ -200,6 +200,7 @@
     <ClInclude Include="Players\CLAPPlayer.h" />
     <ClInclude Include="Infrastructure\CLAPPlugIn.h" />
     <ClInclude Include="Infrastructure\CLAPEvents.h" />
+    <ClInclude Include="Infrastructure\CLAPMidiInputs.h" />
     <ClInclude Include="3rdParty\foo_vis_midi\API.h" />
     <ClInclude Include="Infrastructure\PreferencesFM.h" />
     <ClInclude Include="Infrastructure\CLAPWindow.h" />

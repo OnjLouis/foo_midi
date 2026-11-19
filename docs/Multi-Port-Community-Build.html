@@ -14,13 +14,14 @@
 <body>
 <main>
   <h1>MIDI Player: Multi-Port Community Build</h1>
-  <p>Version 3.2.3.7. Community preview for foobar2000 2.0 or later on Windows, in either 32-bit or 64-bit form.</p>
+  <p>Version 3.2.3.8. Community preview for foobar2000 2.0 or later on Windows, in either 32-bit or 64-bit form.</p>
   <p>This is OnjLouis's community fork of Peter Stuer's foo_midi, itself based on Christopher Snowhill's component. It improves multi-port Yamaha and Roland MIDI playback without changing your MIDI files or synthesizer sounds. It is not an official upstream build.</p>
   <nav aria-label="Guide sections"><ul>
     <li><a href="#changelog">Changelog</a></li>
     <li><a href="#install">Installation</a></li>
     <li><a href="#changes">What changes</a></li>
     <li><a href="#mu-map">MU voice-map selection</a></li>
+    <li><a href="#clap-midi">Multi-port CLAP instruments</a></li>
     <li><a href="#external-midi">External MIDI output</a></li>
     <li><a href="#limits">Limits</a></li>
     <li><a href="#updates">Updates and rollback</a></li>
@@ -28,6 +29,8 @@
     <li><a href="#credits">Credits and source</a></li>
   </ul></nav>
   <h2 id="changelog">Changelog</h2>
+  <h3>3.2.3.8</h3>
+  <p>CLAP instruments can receive MIDI on multiple inputs in a single instance. Notes, controllers and SysEx use the file's port assignments. Plug-ins without the optional voice-info extension can start normally.</p>
   <h3>3.2.3.7</h3>
   <p>External output can adapt Roland GS setup for a two-port song played across two separate GS synths. Native two-port instruments can keep the original SysEx routing.</p>
   <h3>3.2.3.6</h3>
@@ -61,6 +64,10 @@
   <p>MU80 / Basic sends <code>F0 43 10 49 00 00 12 00 F7</code>; MU100 / Native sends <code>F0 43 10 49 00 00 12 01 F7</code>. These use Yamaha device number 1. Recognized voice-map messages from the MIDI are device-wide and reach every declared VST context, retaining their original device number.</p>
   <p>Voice-map selection is not full MU80 hardware emulation and does not replace the MU instrument's samples, effects, panning or polyphony. It is not a fix for reported organ clicks. Thanks to Yamamoto for suggesting a player-side selection instead of editing MIDI files.</p>
   <p>For a listening comparison, use a MIDI that does not explicitly select its own MU map. PhoenixA and PhoenixB are examples from the reported demos; F-Cool and R-love explicitly select Native and can override Basic. Not every patch changes between maps, so a subtle or inaudible difference alone does not prove a fault. Please report the filename, passage, instrument version and selected map when comparing with a reference.</p>
+  <h2 id="clap-midi">Multi-port CLAP instruments</h2>
+  <p>Put the Windows CLAP instrument in the CLAP plug-in directory scanned by MIDI Player and select it in MIDI Player preferences. Use a plug-in matching foobar2000's bitness. No wrapper or external MIDI output is needed.</p>
+  <p>For a multi-input CLAP instrument, file ports A through D go to the corresponding inputs, even when a file skips a port. Each port has 16 MIDI channels. SysEx goes to its original input without being copied or translated. Ports the instrument does not have are skipped. A single-input instrument still receives the first logical port only.</p>
+  <p>The player supports up to eight MIDI 1.0 inputs and reads the first stereo audio output. This does not add sidechain input, multiple audio outputs, or MIDI 2.0 support.</p>
   <h2 id="external-midi">External MIDI output</h2>
   <p>This option sends MIDI to connected instruments or virtual MIDI ports rather than rendering it through a software synthesizer. Select <strong>MIDI output (external device)</strong> in MIDI Player preferences and choose <strong>Configure</strong>. Select the <strong>Primary MIDI output</strong> (Alt+P). For two-port files, select a different <strong>Secondary MIDI output</strong> (Alt+S); otherwise you can leave it at <strong>None</strong>. Enter accepts and Escape cancels. Apply the preferences and restart the track.</p>
   <p>Browse your normal playlist and press Enter on a MIDI file to play it. Listen through the instrument's own audio connection. Foobar's audio volume, mute, equalizer and audio effects do not control that instrument. A loopMIDI port also needs a receiving application, such as an instrument host.</p>
@@ -79,7 +86,7 @@
   <p>Updates to this community fork are manual: download its newest component package, install it through Components and restart. There is no added automatic updater. The upstream component catalogue does not track this fork, and installing an upstream build may replace these changes.</p>
   <p>The MU map preference defaults to sending nothing. External MIDI output is opt-in and has no default port; existing software-player settings continue to work. To return from external output to a software synthesizer, select that player and instrument again and restart playback. Before rolling back to a version without external MIDI output, select a software player, then install the previously retained component package and restart. Your profile backup is a separate safeguard; do not overwrite settings indiscriminately. Do not load old and new DLLs together.</p>
   <h2 id="feedback">Testing and feedback</h2>
-  <p>Seven automated regression tests pass in each architecture, covering the parser, instrument bridge and external MIDI timeline, worker lifecycle and mock-driver buffer ownership. Coverage includes independent notes and programs, timing, SysEx, reset cycles, saved state, later port changes, unsupported or missing ports, lazy instance creation, cancellation and preserved MIDI bytes. Listening checks also covered multi-port Yamaha percussion, Roland demos and external Sound Canvas playback. Long-running workloads and all instrument combinations have not been exhaustively tested.</p>
+  <p>Automated regressions cover the parser, instrument bridge, external MIDI playback and CLAP event routing. Coverage includes independent notes and programs, timing, SysEx, reset cycles, saved state, later port changes, unsupported or missing ports, lazy instance creation, cancellation and preserved MIDI bytes. Listening checks on earlier builds covered multi-port Yamaha percussion, Roland demos and external Sound Canvas playback. Long-running workloads and all instrument combinations have not been exhaustively tested.</p>
   <p>Please <a href="https://github.com/OnjLouis/foo_midi/issues">report reproducible issues</a> with your foobar2000 version and bitness, component version, player backend, instrument version, and the MIDI filename and passage. Comparisons with the upstream component or a permitted hardware recording are useful. Share files only when you have permission; no ROMs or credentials are needed in reports.</p>
   <h2 id="credits">Credits and source</h2>
   <ul>

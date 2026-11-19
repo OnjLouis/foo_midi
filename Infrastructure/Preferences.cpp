@@ -808,11 +808,12 @@ void RootDialog::OnButtonConfig(UINT, int, CWindow)
             {
                 std::shared_ptr<CLAP::PlugIn> PlugIn = Host.CreatePlugIn();
 
-                PlugIn->Initialize();
-
-                Host.OpenEditor(PlugIn, m_hWnd, false);
-
-                PlugIn->Terminate();
+                if (PlugIn)
+                {
+                    if (PlugIn->Initialize())
+                        Host.OpenEditor(PlugIn, m_hWnd, false);
+                    PlugIn->Terminate();
+                }
 
                 Host.Unload();
             }

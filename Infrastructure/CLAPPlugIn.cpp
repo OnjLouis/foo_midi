@@ -11,6 +11,7 @@
 #include "CLAPHost.h"
 #include "CLAPPlugIn.h"
 #include "CLAPPlayer.h"
+#include "CLAPMidiInputs.h"
 
 namespace CLAP
 {
@@ -33,7 +34,8 @@ bool PlugIn::Initialize()
     // [main-thread]
     auto Result = _PlugIn->init(_PlugIn);
 
-    LoadState(CfgCLAPConfig[_Id]);
+    if (Result)
+        LoadState(CfgCLAPConfig[_Id]);
 
     return Result;
 }
@@ -73,20 +75,19 @@ bool PlugIn::Activate(double sampleRate)
     if (!core_api::is_main_thread())
         throw std::runtime_error("PlugIn::Activate() must be called from the main thread");
 
-    // [main-thread & !active]
-    if (!_PlugIn->activate(_PlugIn, sampleRate, 1, CLAP::BlockSize))
+    // Scan the live instance after state loading, while it is still inactive.
+    _MidiInputCount = MidiInputPortCount(_PlugIn);
+    if (_MidiInputCount == 0 || !GetAudioPortsInfo() ||
+        !_PlugIn->activate(_PlugIn, sampleRate, 1, CLAP::BlockSize))
         return false;
 
-    if (!GetAudioPortsInfo())
-        return false;
+    if (GetVoiceInfo()) // Optional; query after activate().
+    {
+        Log.AtInfo().Write(STR_COMPONENT_BASENAME " CLAP player has max. %d voices.", _VoiceInfo.voice_capacity);
 
-    if (!GetVoiceInfo()) // Must be called after activate().
-        return false;
-
-    Log.AtInfo().Write(STR_COMPONENT_BASENAME " CLAP player has max. %d voices.", _VoiceInfo.voice_capacity);
-
-    if ((_VoiceInfo.flags & CLAP_VOICE_INFO_SUPPORTS_OVERLAPPING_NOTES) == 0)
-        Log.AtWarn().Write(STR_COMPONENT_BASENAME " CLAP player does not support overlapping notes.");
+        if ((_VoiceInfo.flags & CLAP_VOICE_INFO_SUPPORTS_OVERLAPPING_NOTES) == 0)
+            Log.AtWarn().Write(STR_COMPONENT_BASENAME " CLAP player does not support overlapping notes.");
+    }
 
     return true;
 }
@@ -279,17 +280,17 @@ void PlugIn::GetPreferredGUISize(RECT & wr) const
 bool PlugIn::GetAudioPortsInfo() noexcept
 {
     if (_PlugIn->get_extension == nullptr)
-        return true;
+        return false;
 
     const auto AudioPorts = (const clap_plugin_audio_ports_t *) _PlugIn->get_extension(_PlugIn, CLAP_EXT_AUDIO_PORTS);
 
-    if (AudioPorts == nullptr)
+    if (AudioPorts == nullptr || !AudioPorts->get)
         return false;
 
     const bool OutputPort = false;
     const uint32_t PortIndex = 0;
 
-    return AudioPorts->get(_PlugIn, PortIndex, OutputPort, &_OutPortInfo);
+    return AudioPorts->get(_PlugIn, PortIndex, OutputPort, &_OutPortInfo) && _OutPortInfo.channel_count == 2;
 }
 
 /// <summary>

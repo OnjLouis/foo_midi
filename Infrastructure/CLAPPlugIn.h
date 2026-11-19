@@ -35,6 +35,7 @@ public:
     bool StartProcessing();
     void StopProcessing();
 
+    uint8_t GetMidiInputCount() const noexcept { return _MidiInputCount; }
     bool Prefers64bitAudio() const noexcept { return ((_OutPortInfo.flags & CLAP_AUDIO_PORT_PREFERS_64BITS) == CLAP_AUDIO_PORT_PREFERS_64BITS); }
     bool IsProcessing() const noexcept { return _IsProcessing; }
 
@@ -63,6 +64,7 @@ private:
 
     clap_audio_port_info _OutPortInfo { };
     clap_voice_info _VoiceInfo { };
+    uint8_t _MidiInputCount = 0;
 
     bool _IsProcessing;
 };

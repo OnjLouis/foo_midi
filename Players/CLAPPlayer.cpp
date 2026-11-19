@@ -13,7 +13,8 @@
 
 #pragma region player_t
 
-CLAPPlayer::CLAPPlayer() noexcept : player_t(), _OutChannels { }, _AudioOut { }, _AudioOuts { }
+CLAPPlayer::CLAPPlayer() noexcept : player_t(), _Samples32 {}, _Samples64 {},
+    _Outputs32 { _Samples32[0], _Samples32[1] }, _Outputs64 { _Samples64[0], _Samples64[1] }, _AudioOut {}
 {
 }
 
@@ -27,42 +28,39 @@ bool CLAPPlayer::Startup()
     if (_IsStarted)
         return true;
 
-	fb2k::inMainThreadSynchronous2([this]
+    fb2k::inMainThreadSynchronous2([this]
     {
-        if (_PlugIn != nullptr)
+        auto PlugIn = _CLAPHost.CreatePlugIn();
+        if (!PlugIn)
             return;
 
-        _PlugIn = _CLAPHost.CreatePlugIn();
-
-        if (_PlugIn == nullptr)
-            throw pfc::exception("Failed to create CLAP plug-in");
-
-        _PlugIn->Initialize();
-
-        _PlugIn->Activate(_SampleRate);
+        if (!PlugIn->Initialize() || !PlugIn->Activate(_SampleRate))
+        {
+            PlugIn->Terminate();
+            return;
+        }
+        _PlugIn = std::move(PlugIn);
     });
 
-    if (!_PlugIn->Prefers64bitAudio())
+    if (!_PlugIn)
     {
-        _OutChannels[0] = new float[GetBlockSize()];
-        _OutChannels[1] = new float[GetBlockSize()];
-
-        _AudioOut.data32        = (float **) _OutChannels;
-        _AudioOut.channel_count = _countof(_OutChannels);
+        _ErrorMessage = "Failed to initialize or activate the CLAP plug-in";
+        return false;
     }
+
+    _AudioOut = {};
+    _AudioOut.channel_count = _countof(_Outputs32);
+    if (_PlugIn->Prefers64bitAudio())
+        _AudioOut.data64 = _Outputs64;
     else
-    {
-        _OutChannels[0] = new double[GetBlockSize()];
-        _OutChannels[1] = new double[GetBlockSize()];
-
-        _AudioOut.data64        = (double **) _OutChannels;
-        _AudioOut.channel_count = _countof(_OutChannels);
-    }
-
-    _AudioOuts[0] = _AudioOut;
+        _AudioOut.data32 = _Outputs32;
 
     if (!_PlugIn->StartProcessing())
+    {
+        _ErrorMessage = "The CLAP plug-in could not start processing";
+        Shutdown();
         return false;
+    }
 
     _IsStarted = true;
 
@@ -74,29 +72,13 @@ bool CLAPPlayer::Startup()
 
 void CLAPPlayer::Shutdown()
 {
-    if (!_IsStarted)
+    _IsStarted = false;
+    _InEvents.Clear();
+    auto PlugIn = std::move(_PlugIn);
+    if (!PlugIn)
         return;
 
-    _IsStarted = false; // Prevent re-entry
-
-    if (_PlugIn)
-        _PlugIn->StopProcessing();
-
-    if (_OutChannels[1])
-    {
-        delete[] _OutChannels[1];
-        _OutChannels[1] = nullptr;
-    }
-
-    if (_OutChannels[0])
-    {
-        delete[] _OutChannels[0];
-        _OutChannels[0] = nullptr;
-    }
-
-    // Add another reference to the plug-in pointer to prevent it from being destroyed prematurely and schedule a cleanup on the main thread.
-    auto PlugIn = _PlugIn;
-
+    PlugIn->StopProcessing();
     auto Cleanup = [PlugIn]
     {
         PlugIn->Deactivate();
@@ -109,7 +91,7 @@ void CLAPPlayer::Shutdown()
 
 void CLAPPlayer::Render(audio_sample * dstFrames, uint32_t dstCount)
 {
-    ::memset(dstFrames, 0, ((size_t) dstCount * _countof(_OutChannels)) * sizeof(audio_sample));
+    ::memset(dstFrames, 0, ((size_t) dstCount * _countof(_Outputs32)) * sizeof(audio_sample));
 
     try
     {
@@ -121,20 +103,23 @@ void CLAPPlayer::Render(audio_sample * dstFrames, uint32_t dstCount)
             .frames_count        = dstCount,
             .transport           = nullptr,
             .audio_inputs        = nullptr,
-            .audio_outputs       = _AudioOuts,
+            .audio_outputs       = &_AudioOut,
             .audio_inputs_count  = 0,
-            .audio_outputs_count = _countof(_AudioOuts),
+            .audio_outputs_count = 1,
             .in_events           = &_InEvents,
             .out_events          = &_OutEvents,
         };
 
-        if (!_PlugIn->Process(Processor))
-            return; // throw exception_io_data("CLAP plug-in event processing failed");
+        _AudioOut.constant_mask = 0;
+        const auto Processed = _PlugIn->Process(Processor);
+        _InEvents.Clear();
+        if (!Processed)
+            return;
 
         if (_AudioOut.data32 != nullptr)
         {
-            const float * _LChannel = (float *) _OutChannels[0];
-            const float * _RChannel = (float *) _OutChannels[1];
+            const float * _LChannel = _Outputs32[0];
+            const float * _RChannel = _Outputs32[1];
 
             for (size_t j = 0; j < dstCount; ++j)
             {
@@ -144,8 +129,8 @@ void CLAPPlayer::Render(audio_sample * dstFrames, uint32_t dstCount)
         }
         else
         {
-            const double * _LChannel = (double *) _OutChannels[0];
-            const double * _RChannel = (double *) _OutChannels[1];
+            const double * _LChannel = _Outputs64[0];
+            const double * _RChannel = _Outputs64[1];
 
             for (size_t j = 0; j < dstCount; ++j)
             {
@@ -156,7 +141,7 @@ void CLAPPlayer::Render(audio_sample * dstFrames, uint32_t dstCount)
     }
     catch (...) { }
 
-    _InEvents.Events.clear();
+    _InEvents.Clear();
 }
 
 /// <summary>
@@ -164,9 +149,11 @@ void CLAPPlayer::Render(audio_sample * dstFrames, uint32_t dstCount)
 /// </summary>
 bool CLAPPlayer::Reset()
 {
-    assert(_countof(_AudioOuts) == 1);
-
-    ResetPort(0, 0);
+    _InEvents.Clear();
+    const auto Count = GetPortCount();
+    for (size_t Port = 0; Port < _PortNumbers.size(); ++Port)
+        if (CLAP::MidiInputIndex(static_cast<uint32_t>(Port), _PortNumbers, Count))
+            ResetPort(static_cast<uint8_t>(Port), 0);
 
     return true;
 }
@@ -177,14 +164,20 @@ void CLAPPlayer::SendEvent(uint32_t data, uint32_t time)
     auto Data1      = (uint8_t) (data >>  8);
     auto Data2      = (uint8_t) (data >> 16);
     auto PortNumber = (uint8_t) (data >> 24);
+    const auto Input = CLAP::MidiInputIndex(PortNumber, _PortNumbers, GetPortCount());
+    if (!Input)
+        return;
 
     Log.AtTrace().Write(STR_COMPONENT_BASENAME " is sending MIDI message %8u: %02X %02X %02X.", time, Status, Data1, Data2);
 
-    _InEvents.Add(Status, Data1, Data2, PortNumber, time);
+    _InEvents.Add(Status, Data1, Data2, *Input, time);
 }
 
 void CLAPPlayer::SendSysEx(const uint8_t * data, size_t size, uint32_t portNumber, uint32_t time)
 {
+    const auto Input = CLAP::MidiInputIndex(portNumber, _PortNumbers, GetPortCount());
+    if (!Input || !data || size == 0 || size > UINT32_MAX)
+        return;
 #ifdef _DEBUG
     std::string Buffer; Buffer.resize((size * 3) + 1); // 3 characters + terminator
 
@@ -199,5 +192,5 @@ void CLAPPlayer::SendSysEx(const uint8_t * data, size_t size, uint32_t portNumbe
     Log.AtTrace().Write(STR_COMPONENT_BASENAME " is sending MIDI SysEx message %8u: %s.", time, Buffer.c_str());
 #endif
 
-    _InEvents.Add(data, (uint32_t) size, (uint16_t) portNumber, time);
+    _InEvents.Add(data, static_cast<uint32_t>(size), *Input, time);
 };

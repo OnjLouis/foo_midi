@@ -52,6 +52,9 @@ int main()
     FakePorts fixture;
     auto plugIn = MakePlugin(fixture);
     Require(CLAP::MidiInputPortCount(&plugIn) == 4, "Four MIDI ports must be accepted");
+    fixture.Count = 5;
+    Require(CLAP::MidiInputPortCount(&plugIn) == 5, "Four parts plus a board input must be accepted");
+    Require(CLAP::MidiInputIndex(1, {0, 4}, 5) == 4, "Sparse board input must retain its port number");
     fixture.Count = 1;
     Require(CLAP::MidiInputPortCount(&plugIn) == 1, "One MIDI port must still work");
     fixture.Count = 0;

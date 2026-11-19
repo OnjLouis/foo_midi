@@ -175,11 +175,11 @@ Secret Sauce is a wrapper for the SCCore.dll that comes bundled with Roland’s 
 
 The CLAP player allows you to use [CLAP (CLever Audio Plug-in API)](https://u-he.com/community/clap/) synthesizer plug-ins to render the audio stream. The plug-in must meet a few requirements:
 
-- Implement the Note Ports and Audio Ports extension.
-- Have only 1 MIDI input port and no MIDI output ports.
-- Support MIDI dialect.
-- Have no audio input ports and only 1 audio output port.
-- Have only 2 output channels in stereo configuration.
+- Implement the Note Ports and Audio Ports extensions.
+- Expose one to eight MIDI inputs that all support the MIDI 1.0 dialect.
+- Expose a stereo audio output as the first output port. The player does not send audio to input ports or read MIDI outputs or additional audio outputs.
+
+For a multi-input instrument, MIDI messages and SysEx follow the file's port numbers. For example, port D goes to the fourth input even if the file does not use B or C. Ports that do not exist on the instrument are skipped. A single-input instrument still plays the first logical port only.
 
 > [!Important]
 > You need to specify location of the CLAP plug-ins on the **[MIDI Player / Paths](#paths)** preferences page. Any compatible plug-in with extension `.dll` or `.clap` will be added to the player list with a `CLAP` prefix. A CLAP plug-in file can contain multiple plug-in entries.

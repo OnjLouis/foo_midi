@@ -1047,8 +1047,9 @@ void RootDialog::OnChanged()
 /// </summary>
 void RootDialog::UpdateDialog() const noexcept
 {
-    // Applies only to VST instruments, including the optional XG override.
+    // Also applies when a VST instrument overrides the selected player for XG files.
     const bool SupportsMUMap = _SelectedPlayer.Type == PlayerType::VSTi ||
+        _SelectedPlayer.Type == PlayerType::CLAP ||
         ::SendMessage(GetDlgItem(IDC_MIDI_USE_VSTI_WITH_XG), BM_GETCHECK, 0, 0) == BST_CHECKED;
     GetDlgItem(IDC_MU_VOICE_MAP_TEXT).EnableWindow(SupportsMUMap);
     GetDlgItem(IDC_MU_VOICE_MAP).EnableWindow(SupportsMUMap);

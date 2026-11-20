@@ -5,6 +5,7 @@
 
 #include "CLAPPlayer.h"
 #include "CLAPPlugIn.h"
+#include "CLAPVoiceMap.h"
 
 #include "Resource.h"
 #include "Encoding.h"
@@ -151,9 +152,22 @@ bool CLAPPlayer::Reset()
 {
     _InEvents.Clear();
     const auto Count = GetPortCount();
-    for (size_t Port = 0; Port < _PortNumbers.size(); ++Port)
-        if (CLAP::MidiInputIndex(static_cast<uint32_t>(Port), _PortNumbers, Count))
-            ResetPort(static_cast<uint8_t>(Port), 0);
+    const auto Map = _MUVoiceMap;
+    // Apply the map once after the host's entire reset sequence, not after each command.
+    _MUVoiceMap = MUVoiceMap::Mode::None;
+    try
+    {
+        for (size_t Port = 0; Port < _PortNumbers.size(); ++Port)
+            if (CLAP::MidiInputIndex(static_cast<uint32_t>(Port), _PortNumbers, Count))
+                ResetPort(static_cast<uint8_t>(Port), 0);
+    }
+    catch (...)
+    {
+        _MUVoiceMap = Map;
+        throw;
+    }
+    _MUVoiceMap = Map;
+    CLAP::QueueMUVoiceMap(_InEvents, Map, Count, 0);
 
     return true;
 }
@@ -175,8 +189,7 @@ void CLAPPlayer::SendEvent(uint32_t data, uint32_t time)
 
 void CLAPPlayer::SendSysEx(const uint8_t * data, size_t size, uint32_t portNumber, uint32_t time)
 {
-    const auto Input = CLAP::MidiInputIndex(portNumber, _PortNumbers, GetPortCount());
-    if (!Input || !data || size == 0 || size > UINT32_MAX)
+    if (!CLAP::QueueSysEx(_InEvents, data, size, portNumber, _PortNumbers, GetPortCount(), time, _MUVoiceMap))
         return;
 #ifdef _DEBUG
     std::string Buffer; Buffer.resize((size * 3) + 1); // 3 characters + terminator
@@ -192,5 +205,4 @@ void CLAPPlayer::SendSysEx(const uint8_t * data, size_t size, uint32_t portNumbe
     Log.AtTrace().Write(STR_COMPONENT_BASENAME " is sending MIDI SysEx message %8u: %s.", time, Buffer.c_str());
 #endif
 
-    _InEvents.Add(data, static_cast<uint32_t>(size), *Input, time);
 };

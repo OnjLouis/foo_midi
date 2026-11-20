@@ -312,7 +312,7 @@ font 8, "MS Shell Dlg", 400, 0, 1
         control     "Use Secret Sauce with GS",                         IDC_MIDI_USE_SC_WITH_GS,        "Button", BS_AUTOCHECKBOX | WS_TABSTOP, X_A87, Y_A87, W_A87, H_A87
         control     "Use VSTi with XG",                                 IDC_MIDI_USE_VSTI_WITH_XG,      "Button", BS_AUTOCHECKBOX | WS_TABSTOP, X_A85, Y_A85, W_A85, H_A85
 
-        rtext       "MU &map (VST):",                                   IDC_MU_VOICE_MAP_TEXT,          X_A88, Y_A88 + 2, W_A88, H_LBL
+        rtext       "MU &map:",                                         IDC_MU_VOICE_MAP_TEXT,          X_A88, Y_A88 + 2, W_A88, H_LBL
         combobox                                                        IDC_MU_VOICE_MAP,               X_A89, Y_A88, W_A89, H_CBX, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
 
         control     "Filter effects (Reverb and Chorus)",               IDC_MIDI_EFFECTS,               "Button", BS_AUTOCHECKBOX | WS_TABSTOP, X_A83, Y_A83, W_A83, H_A83

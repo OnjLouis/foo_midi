@@ -181,6 +181,8 @@ The CLAP player allows you to use [CLAP (CLever Audio Plug-in API)](https://u-he
 
 For a multi-input instrument, MIDI messages and SysEx follow the file's port numbers. For example, port D goes to the fourth input even if the file does not use B or C. Ports that do not exist on the instrument are skipped. A single-input instrument still plays the first logical port only.
 
+For a compatible Yamaha MU instrument, use the **MU map** preference to select **MU80 / Basic** or **MU100 / Native**, then restart the track. By default the player sends no extra map message. The optional map is sent once on CLAP input A at startup and reapplied after recognized resets; SysEx from the file keeps its original destination.
+
 > [!Important]
 > You need to specify location of the CLAP plug-ins on the **[MIDI Player / Paths](#paths)** preferences page. Any compatible plug-in with extension `.dll` or `.clap` will be added to the player list with a `CLAP` prefix. A CLAP plug-in file can contain multiple plug-in entries.
 

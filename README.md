@@ -38,10 +38,11 @@ updates and limitations, or [technical notes](docs/Yamaha-MIDI-Ports.md).
 with the component version, player backend, plugin and reproducible MIDI case.
 Do not upload ROMs or other files you do not have permission to share.
 
-Version 3.2.3.4 adds an optional **MU map (VST)** preference: send nothing
-(the default), MU80 / Basic, or MU100 / Native. The map is independent of
-Flavor and applies at VST playback startup and after recognized resets,
-including after seeking restarts the instrument. Explicit voice-map messages
+The optional **MU map** preference sends nothing (the default), MU80 / Basic,
+or MU100 / Native. Starting with 3.2.3.10, it works with compatible CLAP
+instruments as well as VST. The map is independent of Flavor and applies at
+playback startup, after a backward seek resets the player, and after recognized
+MIDI system resets. Explicit voice-map messages
 in a MIDI file remain effective. This selects a compatible MU instrument's
 voice map; it does not emulate an MU80 or change the instrument's effects.
 

@@ -9,7 +9,7 @@
 #define NUM_FILE_MAJOR              3
 #define NUM_FILE_MINOR              2
 #define NUM_FILE_PATCH              3
-#define NUM_FILE_PRERELEASE         9
+#define NUM_FILE_PRERELEASE         10
 
 #define NUM_PRODUCT_MAJOR           3
 #define NUM_PRODUCT_MINOR           2

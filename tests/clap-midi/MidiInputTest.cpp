@@ -1,4 +1,5 @@
 #include "CLAPMidiInputs.h"
+#include "../../Players/CLAPVoiceMap.h"
 #include "MIDIChannelMute.h"
 #include <array>
 #include <cstdlib>
@@ -46,10 +47,57 @@ clap_plugin_t MakePlugin(FakePorts & fixture)
     };
     return plugIn;
 }
+
+void TestMUVoiceMap()
+{
+    using MUVoiceMap::Mode;
+    const std::vector<uint8_t> sparse{3, 4};
+    constexpr uint8_t Inputs = 5;
+    constexpr uint32_t Time = 42;
+    constexpr std::array<uint8_t, 9> XGReset{0xF0, 0x43, 0x10, 0x4C, 0, 0, 0x7E, 0, 0xF7};
+    auto Check = [](const CLAP::InputEvents & events, uint32_t index, uint16_t port, uint32_t time,
+        const std::array<uint8_t, 9> & expected)
+    {
+        const auto * event = events.get(&events, index);
+        Require(event && event->type == CLAP_EVENT_MIDI_SYSEX, "Missing CLAP SysEx event");
+        const auto * sysex = reinterpret_cast<const clap_event_midi_sysex_t *>(event);
+        Require(sysex->port_index == port && sysex->header.time == time, "MU-map event port or time is wrong");
+        Require(sysex->size == expected.size() && std::equal(expected.begin(), expected.end(), sysex->buffer),
+            "MU-map or original SysEx bytes are wrong");
+    };
+
+    CLAP::InputEvents events;
+    CLAP::QueueMUVoiceMap(events, Mode::None, Inputs, 0);
+    CLAP::QueueMUVoiceMap(events, Mode::Native, 0, 0);
+    Require(events.size(&events) == 0, "Default or unavailable input must not send a map");
+
+    for (const auto mode : {Mode::Basic, Mode::Native})
+    {
+        const auto & selected = mode == Mode::Basic ? MUVoiceMap::BasicMessage : MUVoiceMap::NativeMessage;
+        CLAP::QueueMUVoiceMap(events, mode, Inputs, 0);
+        Require(events.size(&events) == 1, "Startup must send one map even when file port A is unused");
+        Check(events, 0, 0, 0, selected);
+        CLAP::QueueSysEx(events, XGReset.data(), XGReset.size(), 0, sparse, Inputs, Time, mode);
+        Require(events.size(&events) == 3, "A supported reset must be followed by one map");
+        Check(events, 1, 3, Time, XGReset);
+        Check(events, 2, 0, Time, selected);
+        CLAP::QueueSysEx(events, MUVoiceMap::NativeMessage.data(), MUVoiceMap::NativeMessage.size(),
+            1, sparse, Inputs, Time + 1, mode);
+        Require(events.size(&events) == 4, "File map must not be replaced or duplicated");
+        Check(events, 3, 4, Time + 1, MUVoiceMap::NativeMessage);
+        CLAP::QueueSysEx(events, XGReset.data(), XGReset.size(), 1, sparse, Inputs - 1, Time, mode);
+        Require(events.size(&events) == 4, "A reset dropped for a missing input must not change the map");
+        events.Clear();
+    }
+    CLAP::QueueSysEx(events, XGReset.data(), XGReset.size(), 0, sparse, 1, Time, Mode::None);
+    Require(events.size(&events) == 1, "Default mode must leave reset traffic unchanged");
+    Check(events, 0, 0, Time, XGReset);
+}
 }
 
 int main()
 {
+    TestMUVoiceMap();
     FakePorts fixture;
     auto plugIn = MakePlugin(fixture);
     Require(CLAP::MidiInputPortCount(&plugIn) == 4, "Four MIDI ports must be accepted");

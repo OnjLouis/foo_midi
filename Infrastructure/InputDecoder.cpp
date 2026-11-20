@@ -466,6 +466,7 @@ void InputDecoder::decode_initialize(unsigned subSongIndex, unsigned flags, abor
                 throw pfc::exception("No CLAP plug-in loaded into host");
 
             auto Player = new CLAPPlayer();
+            Player->SetMUVoiceMap(MUVoiceMap::FromConfig(CfgMUVoiceMap));
 
             _Player = Player;
 

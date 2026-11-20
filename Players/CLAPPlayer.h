@@ -10,6 +10,7 @@
 
 #include "CLAPHost.h"
 #include "CLAPEvents.h"
+#include "MUVoiceMap.h"
 
 #pragma warning(disable: 4266) // A derived class did not override all overloads of a virtual function.
 #pragma warning(disable: 4820) // x bytes padding added after data member
@@ -26,6 +27,7 @@ public:
 
     virtual uint32_t GetBlockSize() const noexcept override { return CLAP::BlockSize; } // 2 channels
     virtual bool AllowsPartialFinalBlock() const noexcept override { return true; }
+    void SetMUVoiceMap(MUVoiceMap::Mode mode) noexcept { _MUVoiceMap = mode; }
 
 private:
     #pragma region player_t
@@ -50,6 +52,7 @@ private:
 
     CLAP::InputEvents _InEvents;
     CLAP::OutputEvents _OutEvents;
+    MUVoiceMap::Mode _MUVoiceMap = MUVoiceMap::Mode::None;
 
     float _Samples32[2][CLAP::BlockSize];
     double _Samples64[2][CLAP::BlockSize];

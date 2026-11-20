@@ -25,23 +25,28 @@ inline const std::array<uint8_t, 9> * Message(Mode mode) noexcept
     }
 }
 
-inline bool IsSystemReset(const std::vector<uint8_t> & data) noexcept
+inline bool IsSystemReset(const uint8_t * data, size_t size) noexcept
 {
-    if (data.size() < 6 || data.front() != 0xF0 || data.back() != 0xF7)
+    if (size < 6 || data[0] != 0xF0 || data[size - 1] != 0xF7)
         return false;
 
-    if (data.size() == 6)
+    if (size == 6)
         return data[1] == 0x7E && data[2] < 0x80 && data[3] == 9 && (data[4] == 1 || data[4] == 3);
 
-    if (data.size() == 9)
+    if (size == 9)
         return data[1] == 0x43 && (data[2] & 0xF0) == 0x10 && data[3] == 0x4C &&
             data[4] == 0 && data[5] == 0 && data[6] == 0x7E && data[7] == 0;
 
-    if (data.size() == 11)
+    if (size == 11)
         return data[1] == 0x41 && data[2] < 0x80 && data[3] == 0x42 && data[4] == 0x12 &&
             data[5] == 0x40 && data[6] == 0 && data[7] == 0x7F && data[8] == 0 && data[9] == 0x41;
 
     return false;
+}
+
+inline bool IsSystemReset(const std::vector<uint8_t> & data) noexcept
+{
+    return IsSystemReset(data.data(), data.size());
 }
 
 // A reset may restore the instrument's default map. Reapply only on each
